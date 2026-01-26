@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 30% 97%;
+    --foreground: 217 33% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 17%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 199 100% 93%;
+    --secondary-foreground: 199 89% 48%;
+    --muted: 217 13% 91%;
+    --muted-foreground: 217 9% 46%;
+    --accent: 188 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 14% 88%;
+    --input: 217 14% 88%;
+    --ring: 199 89% 48%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 217 32% 17%;
+    --foreground: 0 0% 98%;
+    --card: 217 32% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 217 32% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 188 100% 50%;
+    --primary-foreground: 217 32% 17%;
+    --secondary: 217 32% 11%;
+    --secondary-foreground: 188 100% 50%;
+    --muted: 217 20% 25%;
+    --muted-foreground: 217 9% 56%;
+    --accent: 199 89% 60%;
+    --accent-foreground: 217 32% 17%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 20% 25%;
+    --input: 217 20% 25%;
+    --ring: 188 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background: linear-gradient(135deg, hsl(240, 30%, 97%) 0%, hsl(199, 89%, 93%) 50%, hsl(188, 100%, 95%) 100%);
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+      linear-gradient(90deg, rgba(199, 89%, 48%, 0.03) 1px, transparent 1px),
+      linear-gradient(rgba(199, 89%, 48%, 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  main, nav, footer, section {
+    position: relative;
+    z-index: 1;
+  }
+}
