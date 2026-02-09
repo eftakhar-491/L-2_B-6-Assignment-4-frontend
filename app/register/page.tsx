@@ -3,7 +3,7 @@
 import React, { Suspense } from "react";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth, type UserRole } from "@/app/context/AuthContext";
 import { Navigation } from "@/app/components/Navigation";
 import Footer from "@/app/components/Footer";
@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const defaultRole = (searchParams.get("role") as UserRole) || "customer";
   const { register } = useAuth();
@@ -28,11 +27,13 @@ function RegisterForm() {
     role: defaultRole as UserRole,
   });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setIsLoading(true);
 
     try {
@@ -43,9 +44,15 @@ function RegisterForm() {
         formData.role,
         formData.phone,
       );
-      router.push("/");
+      setSuccess(
+        "Account created! Check your inbox to verify your email before signing in.",
+      );
     } catch (err) {
-      setError("Failed to create account. Please try again.");
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to create account. Please try again.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -154,6 +161,7 @@ function RegisterForm() {
               </div>
 
               {error && <p className="text-sm text-destructive">{error}</p>}
+              {success && <p className="text-sm text-emerald-600">{success}</p>}
 
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Creating Account..." : "Create Account"}

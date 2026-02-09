@@ -1,40 +1,44 @@
-'use client'
+"use client";
 
-import React from "react"
+import React from "react";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/app/context/AuthContext'
-import { Navigation } from '@/app/components/Navigation'
-import Footer from '@/app/components/Footer'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
-import { AlertCircle } from 'lucide-react'
-import Link from 'next/link'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/context/AuthContext";
+import { Navigation } from "@/app/components/Navigation";
+import Footer from "@/app/components/Footer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { AlertCircle } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { login } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setIsLoading(true)
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
     try {
-      await login(email, password)
-      router.push('/')
+      await login(email, password);
+      router.push("/");
     } catch (err) {
-      setError('Invalid email or password. Try customer@demo.com / demo123')
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to sign in. Please try again.";
+      setError(message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -44,7 +48,9 @@ export default function LoginPage() {
           <div className="space-y-6">
             <div className="text-center">
               <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
-              <p className="text-muted-foreground">Sign in to your FoodHub account</p>
+              <p className="text-muted-foreground">
+                Sign in to your FoodHub account
+              </p>
             </div>
 
             {error && (
@@ -54,14 +60,11 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div className="bg-secondary/50 p-4 rounded-lg text-sm">
-              <p className="font-semibold mb-2">Demo Credentials:</p>
-              <ul className="space-y-1 text-muted-foreground">
-                <li>Customer: <code className="bg-background px-2 py-1 rounded">customer@demo.com</code></li>
-                <li>Provider: <code className="bg-background px-2 py-1 rounded">provider@demo.com</code></li>
-                <li>Admin: <code className="bg-background px-2 py-1 rounded">admin@demo.com</code></li>
-                <li>Password: <code className="bg-background px-2 py-1 rounded">demo123</code></li>
-              </ul>
+            <div className="bg-secondary/50 p-4 rounded-lg text-sm text-muted-foreground">
+              <p>
+                Use the email/password you registered with. Accounts must be
+                email-verified before sign-in succeeds.
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -77,7 +80,9 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Password</label>
+                <label className="block text-sm font-medium mb-2">
+                  Password
+                </label>
                 <Input
                   type="password"
                   value={password}
@@ -88,14 +93,17 @@ export default function LoginPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
             <div className="text-center text-sm">
               <p className="text-muted-foreground">
-                Don't have an account?{' '}
-                <Link href="/register" className="text-primary hover:underline font-semibold">
+                Don't have an account?{" "}
+                <Link
+                  href="/register"
+                  className="text-primary hover:underline font-semibold"
+                >
                   Create one
                 </Link>
               </p>
@@ -105,5 +113,5 @@ export default function LoginPage() {
       </main>
       <Footer />
     </div>
-  )
+  );
 }
