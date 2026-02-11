@@ -4,7 +4,7 @@ import React, { createContext, useContext, useMemo, useCallback } from "react";
 
 import { authClient } from "@/app/lib/auth-client";
 
-export type UserRole = "customer" | "provider" | "admin";
+export type UserRole = "customer" | "provider" | "admin" | "super_admin";
 
 export interface User {
   id: string;

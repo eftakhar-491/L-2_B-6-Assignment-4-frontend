@@ -46,6 +46,14 @@ export default function CheckoutPage() {
 
   const hasMixedProviders = providerIds.length > 1;
   const providerProfileId = providerIds[0] ?? "";
+  const baseItemsTotal = useMemo(
+    () => cart.reduce((acc, item) => acc + item.basePrice * item.quantity, 0),
+    [cart],
+  );
+  const variantExtrasTotal = useMemo(
+    () => cart.reduce((acc, item) => acc + item.variantPriceTotal * item.quantity, 0),
+    [cart],
+  );
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
   const deliveryAddress = selectedAddress?.fullAddress?.trim()
     ? selectedAddress.fullAddress
@@ -329,14 +337,33 @@ export default function CheckoutPage() {
                       <div className="space-y-0.5">
                         <p className="font-semibold text-white">{item.name}</p>
                         <p className="text-white/60">Qty {item.quantity}</p>
-                        {item.variantLabel && (
-                          <p className="text-xs text-cyan-200/90">
-                            {item.variantLabel}
-                          </p>
+                        <p className="text-xs text-white/55">
+                          Base {formatCurrency(item.basePrice)}
+                          {item.variantPriceTotal !== 0 && (
+                            <>
+                              {" "}
+                              + variants {formatCurrency(item.variantPriceTotal)}
+                            </>
+                          )}
+                        </p>
+                        {item.selectedVariants.length > 0 && (
+                          <div className="space-y-0.5">
+                            {item.selectedVariants.map((variant) => (
+                              <p
+                                key={`${item.id}-${variant.optionId}`}
+                                className="text-xs text-cyan-200/90"
+                              >
+                                {variant.variantName
+                                  ? `${variant.variantName}: ${variant.optionTitle}`
+                                  : variant.optionTitle}{" "}
+                                ({formatCurrency(variant.priceDelta)})
+                              </p>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <p className="font-semibold text-white">
-                        {formatCurrency(item.price * item.quantity)}
+                        {formatCurrency(item.unitPrice * item.quantity)}
                       </p>
                     </div>
                   ))}
@@ -358,6 +385,14 @@ export default function CheckoutPage() {
                 </p>
 
                 <div className="space-y-3 mb-6 text-sm text-white/80">
+                  <div className="flex justify-between">
+                    <span className="text-white/65">Base items</span>
+                    <span>{formatCurrency(baseItemsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/65">Variant extras</span>
+                    <span>{formatCurrency(variantExtrasTotal)}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-white/65">Subtotal</span>
                     <span>{formatCurrency(cartTotal)}</span>

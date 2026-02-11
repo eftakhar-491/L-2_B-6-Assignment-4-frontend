@@ -384,17 +384,35 @@ export default function OrderDetailsPage() {
                     {order.items.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
                       >
-                        <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">
+                              {item.meal?.title ?? "Meal"}
+                            </p>
+                            <p className="text-white/60">Qty {item.quantity}</p>
+                            <p className="text-xs text-white/55">
+                              Unit {formatCurrency(item.unitPrice)}
+                            </p>
+                          </div>
                           <p className="font-semibold text-white">
-                            {item.meal?.title ?? "Meal"}
+                            {formatCurrency(item.subtotal)}
                           </p>
-                          <p className="text-white/60">Qty {item.quantity}</p>
                         </div>
-                        <p className="font-semibold text-white">
-                          {formatCurrency(item.subtotal)}
-                        </p>
+                        {item.options && item.options.length > 0 && (
+                          <div className="mt-2 space-y-1 text-xs text-cyan-200/90">
+                            {item.options.map((option) => (
+                              <p key={option.id}>
+                                {option.variantOption?.variant?.name
+                                  ? `${option.variantOption.variant.name}: `
+                                  : ""}
+                                {option.variantOption?.title ?? "Option"} (
+                                {formatCurrency(option.priceDelta)})
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

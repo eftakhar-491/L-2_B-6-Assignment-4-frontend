@@ -33,6 +33,14 @@ export default function CartPage() {
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
 
   const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const baseItemsTotal = cart.reduce(
+    (acc, item) => acc + item.basePrice * item.quantity,
+    0,
+  );
+  const variantExtrasTotal = cart.reduce(
+    (acc, item) => acc + item.variantPriceTotal * item.quantity,
+    0,
+  );
   const deliveryFee = cartTotal >= 50 ? 0 : 2.99;
   const tax = cartTotal * 0.1;
   const grandTotal = cartTotal + deliveryFee + tax;
@@ -168,7 +176,7 @@ export default function CartPage() {
               {/* Cart Items */}
               <div className="lg:col-span-2 space-y-4">
                 {cart.map((item) => {
-                  const itemTotal = item.price * item.quantity;
+                  const itemTotal = item.unitPrice * item.quantity;
                   const disableDecrease = item.quantity <= 1;
                   const isBusy = busyItemId === item.id;
 
@@ -191,12 +199,31 @@ export default function CartPage() {
                             {item.name}
                           </h3>
                           <p className="text-sm text-white/65">
-                            {formatCurrency(item.price)} per portion
+                            {formatCurrency(item.unitPrice)} per portion
                           </p>
-                          {item.variantLabel && (
-                            <p className="text-xs text-cyan-200/90">
-                              {item.variantLabel}
-                            </p>
+                          <p className="text-xs text-white/55">
+                            Base {formatCurrency(item.basePrice)}
+                            {item.variantPriceTotal !== 0 && (
+                              <>
+                                {" "}
+                                + variants {formatCurrency(item.variantPriceTotal)}
+                              </>
+                            )}
+                          </p>
+                          {item.selectedVariants.length > 0 && (
+                            <div className="space-y-1">
+                              {item.selectedVariants.map((variant) => (
+                                <p
+                                  key={`${item.id}-${variant.optionId}`}
+                                  className="text-xs text-cyan-200/90"
+                                >
+                                  {variant.variantName
+                                    ? `${variant.variantName}: ${variant.optionTitle}`
+                                    : variant.optionTitle}{" "}
+                                  ({formatCurrency(variant.priceDelta)})
+                                </p>
+                              ))}
+                            </div>
                           )}
                         </div>
 
@@ -252,6 +279,9 @@ export default function CartPage() {
                         <span className="text-sm text-white/60">
                           Line total
                         </span>
+                        <span className="text-xs text-white/55">
+                          {formatCurrency(item.unitPrice)} x {item.quantity}
+                        </span>
                         <span className="font-bold text-lg tracking-tight text-white">
                           {formatCurrency(itemTotal)}
                         </span>
@@ -285,6 +315,14 @@ export default function CartPage() {
                   </p>
 
                   <div className="space-y-3 mb-6 text-sm text-white/80">
+                    <div className="flex justify-between">
+                      <span className="text-white/65">Base items</span>
+                      <span>{formatCurrency(baseItemsTotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/65">Variant extras</span>
+                      <span>{formatCurrency(variantExtrasTotal)}</span>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-white/65">
                         Subtotal ({itemsCount} item{itemsCount === 1 ? "" : "s"}

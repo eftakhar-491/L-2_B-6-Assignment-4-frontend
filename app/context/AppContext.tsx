@@ -25,11 +25,22 @@ export interface CartItem {
   mealId: string;
   name: string;
   price: number;
+  basePrice: number;
+  variantPriceTotal: number;
+  unitPrice: number;
   quantity: number;
   providerId: string;
   image: string;
+  currency?: string | null;
   variantOptionId?: string | null;
   variantLabel?: string;
+  selectedVariants: Array<{
+    variantId: string | null;
+    variantName: string | null;
+    optionId: string;
+    optionTitle: string;
+    priceDelta: number;
+  }>;
 }
 
 export interface AddToCartPayload {
@@ -37,6 +48,7 @@ export interface AddToCartPayload {
   id?: string;
   quantity?: number;
   variantOptionId?: string | null;
+  variantOptionIds?: string[];
   image?: string;
 }
 
@@ -69,24 +81,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const mapBackendCartItem = useCallback((item: BackendCartItem): CartItem => {
-    const optionDelta = toNumber(item.variantOption?.priceDelta, 0);
-    const basePrice = toNumber(item.meal?.price, 0);
-    const variantName = item.variantOption?.variant?.name?.trim();
-    const optionName = item.variantOption?.title?.trim();
+    const basePrice = toNumber(item.pricing?.basePrice, toNumber(item.meal?.price, 0));
+    const optionDelta = toNumber(
+      item.pricing?.variantPriceTotal,
+      toNumber(item.variantOption?.priceDelta, 0),
+    );
+    const unitPrice = toNumber(item.pricing?.unitPrice, basePrice + optionDelta);
+
+    const selectedVariants =
+      item.selectedVariants && item.selectedVariants.length > 0
+        ? item.selectedVariants.map((variant) => ({
+            variantId: variant.variantId ?? null,
+            variantName: variant.variantName ?? null,
+            optionId: variant.optionId,
+            optionTitle: variant.optionTitle,
+            priceDelta: toNumber(variant.priceDelta, 0),
+          }))
+        : item.variantOption
+          ? [
+              {
+                variantId: item.variantOption.variant?.id ?? null,
+                variantName: item.variantOption.variant?.name?.trim() ?? null,
+                optionId: item.variantOption.id,
+                optionTitle: item.variantOption.title?.trim() || "Choice",
+                priceDelta: toNumber(item.variantOption.priceDelta, 0),
+              },
+            ]
+          : [];
+
+    const variantLabel = selectedVariants
+      .map((variant) =>
+        variant.variantName
+          ? `${variant.variantName}: ${variant.optionTitle}`
+          : variant.optionTitle,
+      )
+      .join(", ");
 
     return {
       id: item.id,
       mealId: item.mealId,
       name: item.meal?.title ?? "Meal",
-      price: basePrice + optionDelta,
+      price: unitPrice,
+      basePrice,
+      variantPriceTotal: optionDelta,
+      unitPrice,
       quantity: item.quantity,
       providerId: item.meal?.providerProfileId ?? "",
       image: mealImageByIdRef.current[item.mealId] ?? "/placeholder.svg",
+      currency: item.pricing?.currency ?? null,
       variantOptionId: item.variantOptionId ?? null,
-      variantLabel:
-        variantName && optionName
-          ? `${variantName}: ${optionName}`
-          : optionName || undefined,
+      variantLabel: variantLabel || undefined,
+      selectedVariants,
     };
   }, []);
 
@@ -137,6 +182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         mealId,
         quantity: payload.quantity ?? 1,
         variantOptionId: payload.variantOptionId ?? null,
+        variantOptionIds: payload.variantOptionIds,
       });
 
       await refreshCart();
@@ -175,7 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [ensureCanMutateCart, refreshCart]);
 
   const cartTotal = useMemo(
-    () => cart.reduce((total, item) => total + item.price * item.quantity, 0),
+    () => cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0),
     [cart],
   );
 

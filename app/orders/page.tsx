@@ -213,10 +213,25 @@ export default function OrdersPage() {
             {order.items.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+                className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
               >
-                <span>{item.meal?.title ?? "Meal"}</span>
-                <span className="text-white/60">x {item.quantity}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span>{item.meal?.title ?? "Meal"}</span>
+                  <span className="text-white/60">x {item.quantity}</span>
+                </div>
+                {item.options && item.options.length > 0 && (
+                  <div className="mt-1 space-y-1 text-xs text-cyan-200/90">
+                    {item.options.map((option) => (
+                      <p key={option.id}>
+                        {option.variantOption?.variant?.name
+                          ? `${option.variantOption.variant.name}: `
+                          : ""}
+                        {option.variantOption?.title ?? "Option"} (
+                        {formatCurrency(option.priceDelta)})
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

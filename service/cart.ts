@@ -18,6 +18,22 @@ export interface BackendVariantOption {
   } | null;
 }
 
+export interface BackendCartSelectedVariant {
+  variantId: string | null;
+  variantName: string | null;
+  optionId: string;
+  optionTitle: string;
+  priceDelta: number | string;
+}
+
+export interface BackendCartItemPricing {
+  currency?: string | null;
+  basePrice: number | string;
+  variantPriceTotal: number | string;
+  unitPrice: number | string;
+  lineTotal: number | string;
+}
+
 export interface BackendCartItem {
   id: string;
   mealId: string;
@@ -25,17 +41,29 @@ export interface BackendCartItem {
   quantity: number;
   meal: BackendCartMeal;
   variantOption?: BackendVariantOption | null;
+  selectedVariants?: BackendCartSelectedVariant[];
+  pricing?: BackendCartItemPricing;
+}
+
+export interface BackendCartSummary {
+  currency?: string | null;
+  baseTotal: number | string;
+  variantTotal: number | string;
+  subtotal: number | string;
+  itemsCount: number;
 }
 
 export interface BackendCart {
   id: string | null;
   userId: string;
   items: BackendCartItem[];
+  summary?: BackendCartSummary;
 }
 
 export interface AddCartItemPayload {
   mealId: string;
   variantOptionId?: string | null;
+  variantOptionIds?: string[];
   quantity?: number;
 }
 
@@ -86,4 +114,3 @@ export async function clearCartItems(): Promise<{ cleared: boolean }> {
 
   return unwrap(response as { data: { cleared: boolean } } | { cleared: boolean });
 }
-

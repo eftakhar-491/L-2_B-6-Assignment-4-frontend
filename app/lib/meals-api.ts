@@ -20,6 +20,17 @@ export interface MealCardData {
   reviews: number;
   dietary?: string[];
   preparationTime: number;
+  variants?: Array<{
+    id: string;
+    name: string;
+    isRequired: boolean;
+    options: Array<{
+      id: string;
+      title: string;
+      priceDelta: number;
+      isDefault: boolean;
+    }>;
+  }>;
 }
 
 interface BackendMeal {
@@ -50,6 +61,17 @@ interface BackendMeal {
   }> | null;
   reviews?: Array<{
     rating?: number;
+  }> | null;
+  variants?: Array<{
+    id?: string;
+    name?: string;
+    isRequired?: boolean;
+    options?: Array<{
+      id?: string;
+      title?: string;
+      priceDelta?: number | string;
+      isDefault?: boolean;
+    }> | null;
   }> | null;
 }
 
@@ -96,6 +118,20 @@ const mapMeal = (meal: BackendMeal): MealCardData => {
       ?.map((item) => item.dietaryPreference?.name)
       .filter((name): name is string => Boolean(name)) ?? [];
 
+  const variants =
+    meal.variants?.map((variant) => ({
+      id: variant.id ?? "",
+      name: variant.name ?? "Option",
+      isRequired: Boolean(variant.isRequired),
+      options:
+        variant.options?.map((option) => ({
+          id: option.id ?? "",
+          title: option.title ?? "Choice",
+          priceDelta: toNumber(option.priceDelta, 0),
+          isDefault: Boolean(option.isDefault),
+        })) ?? [],
+    })) ?? [];
+
   return {
     id: meal.id,
     name: meal.title ?? "Untitled meal",
@@ -110,6 +146,7 @@ const mapMeal = (meal: BackendMeal): MealCardData => {
     reviews: reviewCount,
     dietary: dietary.length ? dietary : undefined,
     preparationTime: 30,
+    variants: variants.length ? variants : undefined,
   };
 };
 

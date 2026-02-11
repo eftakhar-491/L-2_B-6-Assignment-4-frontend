@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { fetchMealById } from "@/app/lib/meals-api";
 import { MealDetailsClient } from "./MealDetailsClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function MealDetailsPage({
   params,
 }: {
@@ -39,4 +41,3 @@ export default async function MealDetailsPage({
 
   return <MealDetailsClient meal={meal} />;
 }
-

@@ -35,6 +35,11 @@ const roleLinks = {
     { label: "Orders", href: "/provider/orders" },
   ],
   admin: [{ label: "Admin", href: "/admin" }],
+  super_admin: [
+    { label: "Super Admin", href: "/super-admin" },
+    { label: "User Access", href: "/super-admin/users" },
+    { label: "Admin", href: "/admin" },
+  ],
 } as const;
 
 export function Navigation() {

@@ -1,30 +1,149 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Navigation } from '@/app/components/Navigation'
-import Footer from '@/app/components/Footer'
-import { useAuth } from '@/app/context/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Navigation } from "@/app/components/Navigation";
+import Footer from "@/app/components/Footer";
+import { useAuth } from "@/app/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import { Loader2, Search } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  fetchAdminUsers,
+  updateAdminUserStatus,
+  type AdminUser,
+  type AdminUserRole,
+} from "@/service/admin";
 
-const allUsers = [
-  { id: 1, name: 'John Doe', email: 'john@example.com', role: 'customer', status: 'active', joined: '2024-01-15' },
-  { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'provider', status: 'active', joined: '2024-01-10' },
-  { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'customer', status: 'suspended', joined: '2024-01-08' },
-  { id: 4, name: 'Alice Brown', email: 'alice@example.com', role: 'provider', status: 'active', joined: '2024-01-05' },
-  { id: 5, name: 'Charlie Davis', email: 'charlie@example.com', role: 'customer', status: 'active', joined: '2024-01-01' },
-]
+type RoleFilter = "all" | AdminUserRole;
+
+const roleFilters: RoleFilter[] = [
+  "all",
+  "customer",
+  "provider",
+  "admin",
+  "super_admin",
+];
+
+const toTitle = (value: string) =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 
 export default function AdminUsersPage() {
-  const { isAuthenticated, user } = useAuth()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterRole, setFilterRole] = useState<string | null>(null)
+  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
+  const hasAdminAccess =
+    user?.role === "admin" || user?.role === "super_admin";
+  const { toast } = useToast();
 
-  if (!isAuthenticated || user?.role !== 'admin') {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterRole, setFilterRole] = useState<RoleFilter>("all");
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAdminUsers({ page: 1, limit: 500 });
+      setUsers(response.data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load users.";
+      setError(message);
+      toast({
+        title: "Unable to load users",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasAdminAccess) return;
+    void loadUsers();
+  }, [isAuthenticated, hasAdminAccess, loadUsers]);
+
+  const filteredUsers = useMemo(
+    () =>
+      users.filter((entry) => {
+        const matchesRole = filterRole === "all" || entry.role === filterRole;
+        const text = `${entry.name ?? ""} ${entry.email}`.toLowerCase();
+        const matchesSearch = text.includes(searchTerm.trim().toLowerCase());
+        return matchesRole && matchesSearch;
+      }),
+    [users, filterRole, searchTerm],
+  );
+
+  const handleToggleBlocked = async (entry: AdminUser) => {
+    if (entry.id === user?.id) {
+      toast({
+        title: "Action not allowed",
+        description: "You cannot change your own admin status here.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const shouldActivate = entry.status === "blocked" || !entry.isActive;
+    setUpdatingUserId(entry.id);
+    try {
+      const updated = await updateAdminUserStatus(entry.id, {
+        status: shouldActivate ? "active" : "blocked",
+        isActive: shouldActivate,
+      });
+
+      setUsers((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item)),
+      );
+
+      toast({
+        title: "User updated",
+        description: `${updated.email} is now ${
+          shouldActivate ? "active" : "blocked"
+        }.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Update failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <Navigation />
+        <main className="flex flex-1 items-center justify-center">
+          <Card className="flex items-center gap-3 p-6">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading users...
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !hasAdminAccess) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <Navigation />
@@ -38,19 +157,7 @@ export default function AdminUsersPage() {
         </main>
         <Footer />
       </div>
-    )
-  }
-
-  const filteredUsers = allUsers.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesRole = !filterRole || user.role === filterRole
-    return matchesSearch && matchesRole
-  })
-
-  const handleToggleStatus = (userId: number, currentStatus: string) => {
-    const newStatus = currentStatus === 'active' ? 'suspended' : 'active'
-    alert(`User status changed to ${newStatus}`)
+    );
   }
 
   return (
@@ -59,49 +166,53 @@ export default function AdminUsersPage() {
 
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
-          <h1 className="text-3xl font-bold mb-8">User Management</h1>
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <h1 className="text-3xl font-bold">User Management</h1>
+            <Button variant="outline" onClick={() => void loadUsers()}>
+              Refresh
+            </Button>
+          </div>
 
-          {/* Search & Filter */}
           <Card className="p-6 mb-6">
             <div className="flex gap-4 flex-col md:flex-row">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
-                  placeholder="Search users..."
+                  placeholder="Search by name or email..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(event) => setSearchTerm(event.target.value)}
                   className="pl-10"
                 />
               </div>
 
-              <div className="flex gap-2">
-                <Button
-                  variant={filterRole === null ? 'default' : 'outline'}
-                  onClick={() => setFilterRole(null)}
-                >
-                  All
-                </Button>
-                <Button
-                  variant={filterRole === 'customer' ? 'default' : 'outline'}
-                  onClick={() => setFilterRole('customer')}
-                >
-                  Customers
-                </Button>
-                <Button
-                  variant={filterRole === 'provider' ? 'default' : 'outline'}
-                  onClick={() => setFilterRole('provider')}
-                >
-                  Providers
-                </Button>
+              <div className="flex gap-2 flex-wrap">
+                {roleFilters.map((role) => (
+                  <Button
+                    key={role}
+                    variant={filterRole === role ? "default" : "outline"}
+                    onClick={() => setFilterRole(role)}
+                  >
+                    {role === "all" ? "All" : toTitle(role)}
+                  </Button>
+                ))}
               </div>
             </div>
           </Card>
 
-          {/* Users Table */}
+          {error && (
+            <Card className="mb-6 border-red-300 bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </Card>
+          )}
+
           <Card className="p-6 overflow-x-auto">
-            {filteredUsers.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No users found</p>
+            {isLoading ? (
+              <div className="py-8 text-center text-muted-foreground">
+                Loading users...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                No users found.
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -110,42 +221,75 @@ export default function AdminUsersPage() {
                     <th className="text-left py-3 px-4 font-semibold">Name</th>
                     <th className="text-left py-3 px-4 font-semibold">Email</th>
                     <th className="text-left py-3 px-4 font-semibold">Role</th>
-                    <th className="text-left py-3 px-4 font-semibold">Joined</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold">Active</th>
+                    <th className="text-left py-3 px-4 font-semibold">Joined</th>
                     <th className="text-left py-3 px-4 font-semibold">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map(usr => (
-                    <tr key={usr.id} className="border-b border-border hover:bg-secondary/20">
-                      <td className="py-3 px-4 font-semibold">{usr.name}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{usr.email}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline">
-                          {usr.role.charAt(0).toUpperCase() + usr.role.slice(1)}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground">{usr.joined}</td>
-                      <td className="py-3 px-4">
-                        <Badge className={
-                          usr.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }>
-                          {usr.status.charAt(0).toUpperCase() + usr.status.slice(1)}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Button
-                          size="sm"
-                          variant={usr.status === 'active' ? 'destructive' : 'default'}
-                          onClick={() => handleToggleStatus(usr.id, usr.status)}
-                        >
-                          {usr.status === 'active' ? 'Suspend' : 'Activate'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredUsers.map((entry) => {
+                    const isUpdating = updatingUserId === entry.id;
+                    const isBlocked =
+                      entry.status === "blocked" || entry.isActive === false;
+
+                    return (
+                      <tr
+                        key={entry.id}
+                        className="border-b border-border hover:bg-secondary/20"
+                      >
+                        <td className="py-3 px-4 font-semibold">
+                          {entry.name || "Unnamed user"}
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground">
+                          {entry.email}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="outline">{toTitle(entry.role)}</Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge
+                            className={
+                              entry.status === "active"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }
+                          >
+                            {toTitle(entry.status)}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge
+                            variant={entry.isActive ? "default" : "secondary"}
+                          >
+                            {entry.isActive ? "Yes" : "No"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground">
+                          {formatDate(entry.createdAt)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Button
+                            size="sm"
+                            variant={isBlocked ? "default" : "destructive"}
+                            onClick={() => void handleToggleBlocked(entry)}
+                            disabled={isUpdating || entry.id === user.id}
+                          >
+                            {isUpdating ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Updating
+                              </>
+                            ) : isBlocked ? (
+                              "Activate"
+                            ) : (
+                              "Block"
+                            )}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -155,5 +299,5 @@ export default function AdminUsersPage() {
 
       <Footer />
     </div>
-  )
+  );
 }

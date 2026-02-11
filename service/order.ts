@@ -26,6 +26,10 @@ export interface BackendOrderItemOption {
   variantOption?: {
     id: string;
     title: string;
+    variant?: {
+      id: string;
+      name: string;
+    } | null;
   } | null;
 }
 
@@ -166,4 +170,3 @@ export async function cancelOrder(orderId: string): Promise<BackendOrder> {
 
   return unwrap(response as { data: BackendOrder } | BackendOrder);
 }
-

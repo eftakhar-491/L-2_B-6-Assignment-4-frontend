@@ -16,7 +16,9 @@ import Link from "next/link";
 
 function RegisterForm() {
   const searchParams = useSearchParams();
-  const defaultRole = (searchParams.get("role") as UserRole) || "customer";
+  const roleFromQuery = searchParams.get("role");
+  const defaultRole: UserRole =
+    roleFromQuery === "provider" ? "provider" : "customer";
   const { register } = useAuth();
 
   const [formData, setFormData] = useState({
