@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Navigation } from "@/app/components/Navigation";
 import Footer from "@/app/components/Footer";
 import { useApp } from "@/app/context/AppContext";
@@ -19,18 +20,54 @@ import {
   ShieldCheck,
   Clock,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export default function CartPage() {
   const router = useRouter();
-  const { cart, removeFromCart, updateCartItem, cartTotal } = useApp();
+  const { cart, removeFromCart, updateCartItem, cartTotal, isCartLoading } =
+    useApp();
   const { isAuthenticated, user } = useAuth();
+  const { toast } = useToast();
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
 
   const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const deliveryFee = cartTotal >= 50 ? 0 : 2.99;
   const tax = cartTotal * 0.1;
   const grandTotal = cartTotal + deliveryFee + tax;
+
+  const handleUpdateQuantity = async (id: string, quantity: number) => {
+    setBusyItemId(id);
+    try {
+      await updateCartItem(id, quantity);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Unable to update cart",
+        description:
+          error instanceof Error ? error.message : "Please try again shortly.",
+      });
+    } finally {
+      setBusyItemId((current) => (current === id ? null : current));
+    }
+  };
+
+  const handleRemoveItem = async (id: string) => {
+    setBusyItemId(id);
+    try {
+      await removeFromCart(id);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Unable to remove item",
+        description:
+          error instanceof Error ? error.message : "Please try again shortly.",
+      });
+    } finally {
+      setBusyItemId((current) => (current === id ? null : current));
+    }
+  };
 
   // Redirect if not authenticated or not a customer
   if (!isAuthenticated || user?.role !== "customer") {
@@ -90,6 +127,14 @@ export default function CartPage() {
           </div>
 
           {cart.length === 0 ? (
+            isCartLoading ? (
+              <Card className="p-10 text-center space-y-6 rounded-[24px] border border-white/12 bg-white/5 text-white shadow-[0_18px_90px_rgba(14,165,233,0.18)]">
+                <h1 className="text-2xl font-semibold">Loading cart...</h1>
+                <p className="text-white/65">
+                  Syncing your latest items from server.
+                </p>
+              </Card>
+            ) : (
             <Card className="p-10 text-center space-y-6 rounded-[24px] border border-white/12 bg-white/5 text-white shadow-[0_18px_90px_rgba(14,165,233,0.18)]">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
                 <ShoppingCart className="h-7 w-7 text-white/70" />
@@ -117,6 +162,7 @@ export default function CartPage() {
                 </Button>
               </div>
             </Card>
+            )
           ) : (
             <div className="grid gap-8 lg:grid-cols-3">
               {/* Cart Items */}
@@ -124,6 +170,7 @@ export default function CartPage() {
                 {cart.map((item) => {
                   const itemTotal = item.price * item.quantity;
                   const disableDecrease = item.quantity <= 1;
+                  const isBusy = busyItemId === item.id;
 
                   return (
                     <Card
@@ -146,6 +193,11 @@ export default function CartPage() {
                           <p className="text-sm text-white/65">
                             {formatCurrency(item.price)} per portion
                           </p>
+                          {item.variantLabel && (
+                            <p className="text-xs text-cyan-200/90">
+                              {item.variantLabel}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -153,12 +205,12 @@ export default function CartPage() {
                             <button
                               onClick={() =>
                                 !disableDecrease &&
-                                updateCartItem(
+                                handleUpdateQuantity(
                                   item.id,
                                   Math.max(1, item.quantity - 1),
                                 )
                               }
-                              disabled={disableDecrease}
+                              disabled={disableDecrease || isBusy}
                               className="p-2 hover:bg-white/10 transition-colors rounded-l-full disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Minus className="h-4 w-4" />
@@ -168,8 +220,9 @@ export default function CartPage() {
                             </span>
                             <button
                               onClick={() =>
-                                updateCartItem(item.id, item.quantity + 1)
+                                handleUpdateQuantity(item.id, item.quantity + 1)
                               }
+                              disabled={isBusy}
                               className="p-2 hover:bg-white/10 transition-colors rounded-r-full"
                             >
                               <Plus className="h-4 w-4" />
@@ -184,7 +237,8 @@ export default function CartPage() {
                               In stock
                             </Badge>
                             <button
-                              onClick={() => removeFromCart(item.id)}
+                              onClick={() => handleRemoveItem(item.id)}
+                              disabled={isBusy}
                               className="text-red-300 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
                               aria-label={`Remove ${item.name}`}
                             >
@@ -266,6 +320,7 @@ export default function CartPage() {
                     size="lg"
                     className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950"
                     onClick={() => router.push("/checkout")}
+                    disabled={isCartLoading}
                   >
                     Proceed to checkout
                   </Button>

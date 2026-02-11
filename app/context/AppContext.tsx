@@ -1,61 +1,183 @@
-'use client'
+"use client";
 
-import React, { createContext, useContext, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { useAuth } from "./AuthContext";
+import {
+  addCartItem,
+  clearCartItems,
+  fetchCart,
+  removeCartItem,
+  updateCartItemById,
+  type BackendCartItem,
+} from "@/service/cart";
 
 export interface CartItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  providerId: string
-  image: string
+  id: string;
+  mealId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  providerId: string;
+  image: string;
+  variantOptionId?: string | null;
+  variantLabel?: string;
+}
+
+export interface AddToCartPayload {
+  mealId?: string;
+  id?: string;
+  quantity?: number;
+  variantOptionId?: string | null;
+  image?: string;
 }
 
 export interface AppContextType {
-  cart: CartItem[]
-  addToCart: (item: CartItem) => void
-  removeFromCart: (id: string) => void
-  updateCartItem: (id: string, quantity: number) => void
-  clearCart: () => void
-  cartTotal: number
+  cart: CartItem[];
+  addToCart: (payload: AddToCartPayload) => Promise<void>;
+  removeFromCart: (id: string) => Promise<void>;
+  updateCartItem: (id: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
+  cartTotal: number;
+  isCartLoading: boolean;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined)
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [cart, setCart] = useState<CartItem[]>([])
+  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartLoading, setIsCartLoading] = useState(false);
+  const mealImageByIdRef = useRef<Record<string, string>>({});
 
-  const addToCart = (item: CartItem) => {
-    setCart(prevCart => {
-      const existingItem = prevCart.find(i => i.id === item.id)
-      if (existingItem) {
-        return prevCart.map(i =>
-          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
-        )
-      }
-      return [...prevCart, item]
-    })
-  }
+  const canUseCartApi = Boolean(
+    isAuthenticated && (user?.role === "customer" || user?.role === "provider"),
+  );
 
-  const removeFromCart = (id: string) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== id))
-  }
+  const mapBackendCartItem = useCallback((item: BackendCartItem): CartItem => {
+    const optionDelta = toNumber(item.variantOption?.priceDelta, 0);
+    const basePrice = toNumber(item.meal?.price, 0);
+    const variantName = item.variantOption?.variant?.name?.trim();
+    const optionName = item.variantOption?.title?.trim();
 
-  const updateCartItem = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(id)
-    } else {
-      setCart(prevCart =>
-        prevCart.map(item => (item.id === id ? { ...item, quantity } : item))
-      )
+    return {
+      id: item.id,
+      mealId: item.mealId,
+      name: item.meal?.title ?? "Meal",
+      price: basePrice + optionDelta,
+      quantity: item.quantity,
+      providerId: item.meal?.providerProfileId ?? "",
+      image: mealImageByIdRef.current[item.mealId] ?? "/placeholder.svg",
+      variantOptionId: item.variantOptionId ?? null,
+      variantLabel:
+        variantName && optionName
+          ? `${variantName}: ${optionName}`
+          : optionName || undefined,
+    };
+  }, []);
+
+  const refreshCart = useCallback(async () => {
+    if (!canUseCartApi) {
+      setCart([]);
+      return;
     }
-  }
 
-  const clearCart = () => {
-    setCart([])
-  }
+    setIsCartLoading(true);
+    try {
+      const backendCart = await fetchCart();
+      const mappedItems = (backendCart.items ?? []).map(mapBackendCartItem);
+      setCart(mappedItems);
+    } catch (error) {
+      console.error("Failed to load cart", error);
+      setCart([]);
+    } finally {
+      setIsCartLoading(false);
+    }
+  }, [canUseCartApi, mapBackendCartItem]);
 
-  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
+  useEffect(() => {
+    if (isAuthLoading) return;
+    void refreshCart();
+  }, [isAuthLoading, refreshCart]);
+
+  const ensureCanMutateCart = useCallback(() => {
+    if (!canUseCartApi) {
+      throw new Error("You must be signed in to use cart features.");
+    }
+  }, [canUseCartApi]);
+
+  const addToCart = useCallback(
+    async (payload: AddToCartPayload) => {
+      ensureCanMutateCart();
+
+      const mealId = payload.mealId ?? payload.id;
+      if (!mealId) {
+        throw new Error("Meal ID is required.");
+      }
+
+      if (payload.image) {
+        mealImageByIdRef.current[mealId] = payload.image;
+      }
+
+      await addCartItem({
+        mealId,
+        quantity: payload.quantity ?? 1,
+        variantOptionId: payload.variantOptionId ?? null,
+      });
+
+      await refreshCart();
+    },
+    [ensureCanMutateCart, refreshCart],
+  );
+
+  const removeFromCart = useCallback(
+    async (id: string) => {
+      ensureCanMutateCart();
+      await removeCartItem(id);
+      await refreshCart();
+    },
+    [ensureCanMutateCart, refreshCart],
+  );
+
+  const updateCartItem = useCallback(
+    async (id: string, quantity: number) => {
+      ensureCanMutateCart();
+
+      if (quantity <= 0) {
+        await removeCartItem(id);
+      } else {
+        await updateCartItemById(id, { quantity });
+      }
+
+      await refreshCart();
+    },
+    [ensureCanMutateCart, refreshCart],
+  );
+
+  const clearCart = useCallback(async () => {
+    ensureCanMutateCart();
+    await clearCartItems();
+    await refreshCart();
+  }, [ensureCanMutateCart, refreshCart]);
+
+  const cartTotal = useMemo(
+    () => cart.reduce((total, item) => total + item.price * item.quantity, 0),
+    [cart],
+  );
 
   return (
     <AppContext.Provider
@@ -65,18 +187,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeFromCart,
         updateCartItem,
         clearCart,
+        refreshCart,
         cartTotal,
+        isCartLoading,
       }}
     >
       {children}
     </AppContext.Provider>
-  )
+  );
 }
 
 export function useApp() {
-  const context = useContext(AppContext)
+  const context = useContext(AppContext);
   if (context === undefined) {
-    throw new Error('useApp must be used within AppProvider')
+    throw new Error("useApp must be used within AppProvider");
   }
-  return context
+  return context;
 }

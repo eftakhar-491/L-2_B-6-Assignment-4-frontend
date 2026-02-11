@@ -1,59 +1,33 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { CheckCircle, Clock, MapPin, Truck, XCircle } from "lucide-react";
+
 import { Navigation } from "@/app/components/Navigation";
 import Footer from "@/app/components/Footer";
 import { useAuth } from "@/app/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { Clock, CheckCircle, Truck, MapPin } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  cancelOrder,
+  fetchMyOrders,
+  type BackendOrder,
+  type OrderStatus,
+} from "@/service/order";
 
-// Mock orders
-const mockOrders = [
-  {
-    id: "ORD001",
-    date: "2024-01-25",
-    total: 35.97,
-    status: "delivered" as const,
-    items: [
-      { name: "Margherita Pizza", quantity: 1, price: 12.99 },
-      { name: "Pasta Carbonara", quantity: 1, price: 11.99 },
-    ],
-    provider: "Pizza Palace",
-  },
-  {
-    id: "ORD002",
-    date: "2024-01-24",
-    total: 28.97,
-    status: "out_for_delivery" as const,
-    items: [{ name: "Kung Pao Chicken", quantity: 2, price: 10.99 }],
-    provider: "Dragon House",
-  },
-  {
-    id: "ORD003",
-    date: "2024-01-23",
-    total: 41.97,
-    status: "preparing" as const,
-    items: [
-      { name: "Butter Chicken", quantity: 1, price: 13.99 },
-      { name: "Paneer Tikka", quantity: 1, price: 11.99 },
-      { name: "Biryani Rice", quantity: 1, price: 12.99 },
-    ],
-    provider: "Spice Route",
-  },
-];
+const stageOrder: OrderStatus[] = ["placed", "preparing", "ready", "delivered"];
 
-const statusConfig = {
-  pending: {
+const statusConfig: Record<
+  OrderStatus,
+  { label: string; classes: string; icon: typeof Clock }
+> = {
+  placed: {
     icon: Clock,
-    label: "Pending",
+    label: "Placed",
     classes: "border border-amber-200/40 bg-amber-300/10 text-amber-100",
-  },
-  confirmed: {
-    icon: CheckCircle,
-    label: "Confirmed",
-    classes: "border border-cyan-200/40 bg-cyan-300/10 text-cyan-100",
   },
   preparing: {
     icon: Clock,
@@ -61,35 +35,21 @@ const statusConfig = {
     classes: "border border-orange-200/40 bg-orange-300/10 text-orange-100",
   },
   ready: {
-    icon: CheckCircle,
-    label: "Ready",
-    classes: "border border-emerald-200/40 bg-emerald-300/10 text-emerald-100",
-  },
-  out_for_delivery: {
     icon: Truck,
-    label: "Courier en route",
-    classes: "border border-purple-200/40 bg-purple-300/10 text-purple-100",
+    label: "Ready",
+    classes: "border border-cyan-200/40 bg-cyan-300/10 text-cyan-100",
   },
   delivered: {
     icon: CheckCircle,
-    label: "Handed off",
+    label: "Delivered",
     classes: "border border-lime-200/40 bg-lime-300/10 text-lime-100",
   },
   cancelled: {
-    icon: Clock,
+    icon: XCircle,
     label: "Cancelled",
     classes: "border border-rose-200/40 bg-rose-300/10 text-rose-100",
   },
 };
-
-const stageOrder = [
-  "pending",
-  "confirmed",
-  "preparing",
-  "ready",
-  "out_for_delivery",
-  "delivered",
-];
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -104,29 +64,88 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const formatDate = (date: string) => dateFormatter.format(new Date(date));
-const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const formatCurrency = (value: unknown) =>
+  currencyFormatter.format(toNumber(value, 0));
 
 export default function OrdersPage() {
   const { isAuthenticated, user } = useAuth();
-  const activeOrders = mockOrders.filter(
-    (order) => order.status !== "delivered",
-  );
-  const deliveredOrders = mockOrders.filter(
-    (order) => order.status === "delivered",
-  );
-  const totalSpend = mockOrders.reduce((sum, order) => sum + order.total, 0);
+  const { toast } = useToast();
+  const [orders, setOrders] = useState<BackendOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
 
-  const renderOrderCard = (
-    order: (typeof mockOrders)[number],
-    isArchived = false,
-  ) => {
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetchMyOrders({ page: 1, limit: 50 });
+      setOrders(response.data);
+    } catch (error) {
+      setOrders([]);
+      toast({
+        variant: "destructive",
+        title: "Failed to load orders",
+        description:
+          error instanceof Error ? error.message : "Please try again shortly.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== "customer") return;
+    void loadOrders();
+  }, [isAuthenticated, loadOrders, user?.role]);
+
+  const activeOrders = useMemo(
+    () => orders.filter((order) => !["delivered", "cancelled"].includes(order.status)),
+    [orders],
+  );
+  const deliveredOrders = useMemo(
+    () => orders.filter((order) => order.status === "delivered"),
+    [orders],
+  );
+  const totalSpend = useMemo(
+    () => orders.reduce((sum, order) => sum + toNumber(order.totalAmount, 0), 0),
+    [orders],
+  );
+
+  const handleCancelOrder = async (orderId: string) => {
+    setCancelingOrderId(orderId);
+    try {
+      await cancelOrder(orderId);
+      await loadOrders();
+      toast({
+        title: "Order cancelled",
+        description: "The order was cancelled successfully.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to cancel order",
+        description:
+          error instanceof Error ? error.message : "Please try again shortly.",
+      });
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
+
+  const renderOrderCard = (order: BackendOrder, isArchived = false) => {
     const config = statusConfig[order.status];
     const Icon = config.icon;
-    const currentStageIndex = stageOrder.indexOf(order.status);
-    const progressPercent = Math.max(
-      0,
-      Math.min(100, (currentStageIndex / (stageOrder.length - 1)) * 100),
-    );
+    const currentStageIndex =
+      order.status === "cancelled" ? -1 : stageOrder.indexOf(order.status);
+    const progressPercent =
+      currentStageIndex < 0
+        ? 0
+        : Math.max(0, Math.min(100, (currentStageIndex / (stageOrder.length - 1)) * 100));
 
     return (
       <Card
@@ -136,14 +155,14 @@ export default function OrdersPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-[11px] uppercase tracking-[0.4em] text-white/45">
-              Order · {order.id}
+              Order - {order.id.slice(0, 8)}
             </p>
             <div className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
               <MapPin className="h-4 w-4 text-cyan-300" />
-              {order.provider}
+              {order.providerProfile?.name ?? "Provider"}
             </div>
             <p className="text-sm text-white/60">
-              Placed {formatDate(order.date)}
+              Placed {formatDate(order.placedAt)}
             </p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -159,88 +178,57 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-white/45">
-              <span>Courier status</span>
-              <span className="text-white/80">{config.label}</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-emerald-300"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em] text-white/35">
-              {stageOrder.map((stage, index) => (
-                <span
-                  key={`${order.id}-${stage}`}
-                  className={
-                    index <= currentStageIndex ? "text-white/80" : undefined
-                  }
-                >
-                  {stage.replaceAll("_", " ")}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                Items manifest
-              </p>
-              <div className="space-y-2 text-sm text-white/80">
-                {order.items.map((item, idx) => (
-                  <div
-                    key={`${order.id}-${idx}`}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+        {order.status !== "cancelled" && (
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-white/45">
+                <span>Courier status</span>
+                <span className="text-white/80">{config.label}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-emerald-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em] text-white/35">
+                {stageOrder.map((stage, index) => (
+                  <span
+                    key={`${order.id}-${stage}`}
+                    className={index <= currentStageIndex ? "text-white/80" : undefined}
                   >
-                    <span>{item.name}</span>
-                    <span className="text-white/60">× {item.quantity}</span>
-                  </div>
+                    {stage.replaceAll("_", " ")}
+                  </span>
                 ))}
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="rounded-2xl border border-white/12 bg-white/5 p-4">
-              <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                Invoice
-              </p>
-              <div className="mt-3 space-y-2 text-sm text-white/70">
-                <div className="flex items-center justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(order.total * 0.86)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Logistics</span>
-                  <span>{formatCurrency(order.total * 0.08)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Service</span>
-                  <span>{formatCurrency(order.total * 0.06)}</span>
-                </div>
+        <div className="mt-6 space-y-3">
+          <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
+            Items manifest
+          </p>
+          <div className="space-y-2 text-sm text-white/80">
+            {order.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+              >
+                <span>{item.meal?.title ?? "Meal"}</span>
+                <span className="text-white/60">x {item.quantity}</span>
               </div>
-              <div className="mt-4">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/45">
-                  Total
-                </p>
-                <p className="text-3xl font-semibold text-white">
-                  {formatCurrency(order.total)}
-                </p>
-                <p className="text-xs text-white/60">
-                  Auto-calculated • tax inclusive
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5 text-sm text-white/70 lg:flex-row lg:items-center lg:justify-between">
-          <p>
-            Need help with this drop? Reference {order.id} for instant routing
-            to the correct chef pod.
-          </p>
+          <div>
+            <p>Total</p>
+            <p className="text-xl font-semibold text-white">
+              {formatCurrency(order.totalAmount)}
+            </p>
+          </div>
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
@@ -249,9 +237,16 @@ export default function OrdersPage() {
             >
               <Link href={`/orders/${order.id}`}>View timeline</Link>
             </Button>
-            <Button className="rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950">
-              Download receipt
-            </Button>
+            {order.status === "placed" && (
+              <Button
+                variant="outline"
+                className="rounded-full border-rose-300/35 text-rose-100 hover:bg-rose-500/15"
+                onClick={() => handleCancelOrder(order.id)}
+                disabled={cancelingOrderId === order.id}
+              >
+                {cancelingOrderId === order.id ? "Cancelling..." : "Cancel order"}
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -270,10 +265,6 @@ export default function OrdersPage() {
             <h1 className="mt-4 text-3xl font-semibold">
               Sign in to track your drops
             </h1>
-            <p className="mt-3 text-white/65">
-              Sync your courier timeline, delivery ETA, and chef chat in one
-              glass board.
-            </p>
             <Button
               asChild
               className="mt-8 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950"
@@ -298,19 +289,16 @@ export default function OrdersPage() {
               <p className="text-xs uppercase tracking-[0.45em] text-white/50">
                 Courier timeline
               </p>
-              <h1 className="mt-3 text-4xl font-semibold">
-                Orders Control Room
-              </h1>
+              <h1 className="mt-3 text-4xl font-semibold">Orders Control Room</h1>
               <p className="mt-4 max-w-xl text-white/70">
-                Track chef prep, courier routes, and delivered drops inside a
-                single glass dashboard.
+                Track chef prep and delivery status from a single dashboard.
               </p>
             </div>
             <div className="grid w-full gap-3 sm:grid-cols-3 lg:w-auto">
               {[
-                { label: "Active orders", value: activeOrders.length || "—" },
-                { label: "Delivered", value: deliveredOrders.length || "—" },
-                { label: "Total spend", value: `$${totalSpend.toFixed(2)}` },
+                { label: "Active orders", value: activeOrders.length || "-" },
+                { label: "Delivered", value: deliveredOrders.length || "-" },
+                { label: "Total spend", value: formatCurrency(totalSpend) },
               ].map((stat) => (
                 <div
                   key={stat.label}
@@ -328,7 +316,11 @@ export default function OrdersPage() {
 
         <section className="py-12">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            {mockOrders.length === 0 ? (
+            {isLoading ? (
+              <Card className="rounded-[36px] border-white/15 bg-white/5 p-10 text-center text-white/80 shadow-[0_25px_110px_rgba(6,182,212,0.2)]">
+                Loading orders...
+              </Card>
+            ) : orders.length === 0 ? (
               <Card className="rounded-[36px] border-white/15 bg-white/5 p-10 text-center text-white/80 shadow-[0_25px_110px_rgba(6,182,212,0.2)]">
                 <p>
                   You haven't placed any orders yet. Once the first drop goes
@@ -363,14 +355,10 @@ export default function OrdersPage() {
                       <p className="text-xs uppercase tracking-[0.4em] text-white/45">
                         Logbook
                       </p>
-                      <h2 className="text-2xl font-semibold">
-                        Delivered orders
-                      </h2>
+                      <h2 className="text-2xl font-semibold">Delivered orders</h2>
                     </div>
                     <div className="grid gap-6 lg:grid-cols-2">
-                      {deliveredOrders.map((order) =>
-                        renderOrderCard(order, true),
-                      )}
+                      {deliveredOrders.map((order) => renderOrderCard(order, true))}
                     </div>
                   </div>
                 )}

@@ -12,6 +12,7 @@ export interface MealCardData {
   description: string;
   price: number;
   image: string;
+  categoryId?: string;
   category: string;
   providerId: string;
   providerName: string;
@@ -37,6 +38,7 @@ interface BackendMeal {
     isPrimary?: boolean;
   }> | null;
   categories?: Array<{
+    categoryId?: string;
     category?: {
       name?: string;
     } | null;
@@ -88,6 +90,7 @@ const mapMeal = (meal: BackendMeal): MealCardData => {
     "/placeholder.jpg";
 
   const category = meal.categories?.[0]?.category?.name ?? "Meal";
+  const categoryId = meal.categories?.[0]?.categoryId;
   const dietary =
     meal.dietaryTags
       ?.map((item) => item.dietaryPreference?.name)
@@ -99,6 +102,7 @@ const mapMeal = (meal: BackendMeal): MealCardData => {
     description: meal.shortDesc ?? meal.description ?? "No description provided.",
     price: toNumber(meal.price, 0),
     image,
+    categoryId,
     category,
     providerId: meal.providerProfile?.id ?? "",
     providerName: meal.providerProfile?.name ?? "Unknown provider",
@@ -122,9 +126,46 @@ const fetchBackend = async <T>(path: string): Promise<T | null> => {
   }
 };
 
-export const fetchMeals = async (limit = 60): Promise<MealCardData[]> => {
+export interface FetchMealsOptions {
+  page?: number;
+  limit?: number;
+  searchTerm?: string;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  isFeatured?: boolean;
+  isActive?: boolean;
+  sort?: string;
+}
+
+const buildMealsQuery = (options: FetchMealsOptions) => {
+  const query = new URLSearchParams();
+
+  if (options.page) query.set("page", String(options.page));
+  if (options.limit) query.set("limit", String(options.limit));
+  if (options.searchTerm) query.set("searchTerm", options.searchTerm);
+  if (options.categoryId) query.set("categoryId", options.categoryId);
+  if (options.minPrice !== undefined) query.set("minPrice", String(options.minPrice));
+  if (options.maxPrice !== undefined) query.set("maxPrice", String(options.maxPrice));
+  if (options.isFeatured !== undefined) {
+    query.set("isFeatured", String(options.isFeatured));
+  }
+  if (options.isActive !== undefined) query.set("isActive", String(options.isActive));
+  if (options.sort) query.set("sort", options.sort);
+
+  const asString = query.toString();
+  return asString ? `?${asString}` : "";
+};
+
+export const fetchMeals = async (
+  options: FetchMealsOptions = {},
+): Promise<MealCardData[]> => {
+  const query = buildMealsQuery({
+    limit: 60,
+    ...options,
+  });
   const payload = await fetchBackend<BackendEnvelope<BackendMeal[]>>(
-    `/api/meals?limit=${limit}`,
+    `/api/meals${query}`,
   );
 
   if (!payload) return [];
@@ -149,4 +190,3 @@ export const fetchMealById = async (
 
   return mapMeal(meal as BackendMeal);
 };
-

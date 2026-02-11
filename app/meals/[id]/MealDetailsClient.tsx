@@ -10,28 +10,42 @@ import { useApp } from "@/app/context/AppContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import type { MealCardData } from "@/app/lib/meals-api";
+import { useToast } from "@/hooks/use-toast";
 
 export function MealDetailsClient({ meal }: { meal: MealCardData }) {
   const router = useRouter();
   const { addToCart } = useApp();
   const { isAuthenticated, user } = useAuth();
+  const { toast } = useToast();
   const [quantity, setQuantity] = useState(1);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated || user?.role !== "customer") {
       router.push("/login");
       return;
     }
 
-    addToCart({
-      id: meal.id,
-      name: meal.name,
-      price: meal.price,
-      quantity,
-      providerId: meal.providerId,
-      image: meal.image,
-    });
-    router.push("/cart");
+    try {
+      setIsAddingToCart(true);
+      await addToCart({
+        mealId: meal.id,
+        quantity,
+        image: meal.image,
+      });
+      router.push("/cart");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Unable to add item",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Please try again in a moment.",
+      });
+    } finally {
+      setIsAddingToCart(false);
+    }
   };
 
   const statChips = [
@@ -58,7 +72,7 @@ export function MealDetailsClient({ meal }: { meal: MealCardData }) {
               className="rounded-full border-white/20 bg-transparent text-white hover:bg-white/10"
               onClick={() => router.back()}
             >
-              ← Back
+              {"<-"} Back
             </Button>
           </div>
         </section>
@@ -168,9 +182,10 @@ export function MealDetailsClient({ meal }: { meal: MealCardData }) {
                 <Button
                   size="lg"
                   onClick={handleAddToCart}
+                  disabled={isAddingToCart}
                   className="mt-6 w-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 hover:from-cyan-300"
                 >
-                  Add to cart
+                  {isAddingToCart ? "Adding..." : "Add to cart"}
                 </Button>
               </div>
             </div>
