@@ -13,6 +13,15 @@ export const metadata = {
   title: "FoodHub - Discover & Order Delicious Meals",
   description:
     "Browse premium restaurants, discover amazing dishes, and get them delivered fresh to your door in minutes.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/apple-icon.png",
+    other: {
+      rel: "mask-icon",
+      url: "/icon.svg",
+    },
+  },
 };
 
 export const viewport = {

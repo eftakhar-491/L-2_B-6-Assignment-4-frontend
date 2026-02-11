@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { KeyRound, Lock, ShieldCheck } from "lucide-react";
@@ -18,7 +18,7 @@ import {
   initialStatus,
 } from "../components/action-status";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const initialToken = searchParams.get("token") ?? "";
   const [capturedToken, setCapturedToken] = useState<string>(initialToken);
@@ -246,5 +246,24 @@ export default function ResetPasswordPage() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+          <main className="flex flex-1 items-center justify-center px-4 py-16 sm:px-8">
+            <Card className="w-full max-w-xl border-white/10 bg-slate-900/80 p-8 text-center backdrop-blur">
+              Loading password reset...
+            </Card>
+          </main>
+          <Footer />
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

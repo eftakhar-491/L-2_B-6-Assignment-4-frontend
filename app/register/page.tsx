@@ -192,7 +192,6 @@ export default function RegisterPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen flex-col bg-background">
-          <Navigation />
           <main className="flex-1 flex items-center justify-center py-12 px-4">
             <Card className="w-full max-w-md p-8 border border-border">
               <div className="text-center">Loading...</div>

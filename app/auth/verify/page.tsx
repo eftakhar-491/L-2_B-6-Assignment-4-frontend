@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
@@ -14,7 +14,7 @@ import { authApiUrl } from "@/app/lib/auth-client";
 
 type Status = "idle" | "loading" | "success" | "error";
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const { refetchSession } = useAuth();
 
@@ -139,5 +139,24 @@ export default function VerifyEmailPage() {
       </main>
       <Footer />
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col bg-background">
+          <main className="flex flex-1 items-center justify-center px-4 py-12">
+            <Card className="w-full max-w-lg border border-border p-8 text-center">
+              Loading verification...
+            </Card>
+          </main>
+          <Footer />
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
