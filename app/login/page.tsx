@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
-
+// login page with email and password fields, error handling, and loading state
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
