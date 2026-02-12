@@ -22,15 +22,6 @@ const HOP_BY_HOP_HEADERS = new Set([
   "host",
 ]);
 
-const ALLOWED_FORWARD_HEADERS = [
-  "accept",
-  "accept-language",
-  "authorization",
-  "content-type",
-  "cookie",
-  "user-agent",
-] as const;
-
 const buildTargetUrl = (request: NextRequest, path: string[]) => {
   const targetPath = path.join("/");
   const target = new URL(`${API_BACKEND_BASE_URL}/api/${targetPath}`);
@@ -39,14 +30,9 @@ const buildTargetUrl = (request: NextRequest, path: string[]) => {
 };
 
 const buildRequestHeaders = (request: NextRequest) => {
-  const headers = new Headers();
-  for (const key of ALLOWED_FORWARD_HEADERS) {
-    const value = request.headers.get(key);
-    if (value) {
-      headers.set(key, value);
-    }
-  }
+  const headers = new Headers(request.headers);
 
+  HOP_BY_HOP_HEADERS.forEach((header) => headers.delete(header));
   headers.set("origin", request.nextUrl.origin);
   headers.set("x-forwarded-host", request.nextUrl.host);
   headers.set("x-forwarded-proto", request.nextUrl.protocol.replace(":", ""));
@@ -72,44 +58,31 @@ const forwardRequest = async (
   const { path } = await context.params;
   const targetUrl = buildTargetUrl(request, path ?? []);
   const method = request.method.toUpperCase();
-  try {
-    const response = await fetch(targetUrl, {
-      method,
-      headers: buildRequestHeaders(request),
-      body: method === "GET" || method === "HEAD" ? undefined : request.body,
-      redirect: "manual",
-    });
+  const response = await fetch(targetUrl, {
+    method,
+    headers: buildRequestHeaders(request),
+    body: method === "GET" || method === "HEAD" ? undefined : request.body,
+    redirect: "manual",
+  });
 
-    const headers = copyResponseHeaders(response.headers);
-    const getSetCookie = (
-      response.headers as Headers & { getSetCookie?: () => string[] }
-    ).getSetCookie;
-    const cookies = typeof getSetCookie === "function" ? getSetCookie() : [];
-    if (cookies.length > 0) {
-      cookies.forEach((cookie) => headers.append("set-cookie", cookie));
-    } else {
-      const singleCookie = response.headers.get("set-cookie");
-      if (singleCookie) {
-        headers.append("set-cookie", singleCookie);
-      }
+  const headers = copyResponseHeaders(response.headers);
+  const getSetCookie = (
+    response.headers as Headers & { getSetCookie?: () => string[] }
+  ).getSetCookie;
+  const cookies = typeof getSetCookie === "function" ? getSetCookie() : [];
+  if (cookies.length > 0) {
+    cookies.forEach((cookie) => headers.append("set-cookie", cookie));
+  } else {
+    const singleCookie = response.headers.get("set-cookie");
+    if (singleCookie) {
+      headers.append("set-cookie", singleCookie);
     }
-
-    return new NextResponse(response.body, {
-      status: response.status,
-      headers,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown proxy error";
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Upstream request failed",
-        detail: message,
-      },
-      { status: 502 },
-    );
   }
+
+  return new NextResponse(response.body, {
+    status: response.status,
+    headers,
+  });
 };
 
 export const GET = forwardRequest;
