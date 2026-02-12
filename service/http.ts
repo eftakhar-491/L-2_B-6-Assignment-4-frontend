@@ -12,12 +12,15 @@ export class ApiError extends Error {
 
 const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
 
+const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY !== "false";
 const RAW_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.NEXT_PUBLIC_BACKEND_URL ??
-  "http://localhost:5000";
+  USE_API_PROXY
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL ??
+      process.env.NEXT_PUBLIC_BACKEND_URL ??
+      "http://localhost:5000");
 
-export const API_BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
+export const API_BASE_URL = RAW_BASE_URL ? normalizeBaseUrl(RAW_BASE_URL) : "";
 
 type BodyInitValue = BodyInit | object;
 
