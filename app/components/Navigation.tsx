@@ -41,6 +41,7 @@ const roleLinks = {
   super_admin: [
     { label: "Super Admin", href: "/super-admin" },
     { label: "User Access", href: "/super-admin/users" },
+    { label: "Meal Control", href: "/super-admin/meals" },
     { label: "Admin", href: "/admin" },
   ],
 } as const;

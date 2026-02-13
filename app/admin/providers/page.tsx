@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -16,6 +16,7 @@ import {
   verifyAdminProvider,
   type AdminProviderProfile,
 } from "@/service/admin";
+import { deleteSuperAdminProvider } from "@/service/superAdmin";
 
 type VerificationFilter = "all" | "verified" | "unverified";
 
@@ -33,6 +34,7 @@ export default function AdminProvidersPage() {
   const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
   const hasAdminAccess =
     user?.role === "admin" || user?.role === "super_admin";
+  const isSuperAdmin = user?.role === "super_admin";
   const { toast } = useToast();
 
   const [providers, setProviders] = useState<AdminProviderProfile[]>([]);
@@ -41,6 +43,7 @@ export default function AdminProvidersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<VerificationFilter>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
     setIsLoading(true);
@@ -137,6 +140,26 @@ export default function AdminProvidersPage() {
       });
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleDeleteProvider = async (provider: AdminProviderProfile) => {
+    setDeletingId(provider.id);
+    try {
+      const deleted = await deleteSuperAdminProvider(provider.id);
+      setProviders((prev) => prev.filter((item) => item.id !== deleted.id));
+      toast({
+        title: "Provider deleted",
+        description: `${provider.name} and ${deleted.disabledMeals} meal(s) were disabled.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -264,6 +287,8 @@ export default function AdminProvidersPage() {
                 <tbody>
                   {filteredProviders.map((provider) => {
                     const isUpdating = updatingId === provider.id;
+                    const isDeleting = deletingId === provider.id;
+                    const isBusy = isUpdating || isDeleting;
                     return (
                       <tr
                         key={provider.id}
@@ -296,23 +321,45 @@ export default function AdminProvidersPage() {
                           {formatDate(provider.createdAt)}
                         </td>
                         <td className="px-4 py-3">
-                          <Button
-                            size="sm"
-                            variant={provider.isVerified ? "outline" : "default"}
-                            onClick={() => void handleToggleVerification(provider)}
-                            disabled={isUpdating}
-                          >
-                            {isUpdating ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Updating
-                              </>
-                            ) : provider.isVerified ? (
-                              "Unverify"
-                            ) : (
-                              "Verify"
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant={provider.isVerified ? "outline" : "default"}
+                              onClick={() => void handleToggleVerification(provider)}
+                              disabled={isBusy}
+                            >
+                              {isUpdating ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Updating
+                                </>
+                              ) : provider.isVerified ? (
+                                "Unverify"
+                              ) : (
+                                "Verify"
+                              )}
+                            </Button>
+                            {isSuperAdmin && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => void handleDeleteProvider(provider)}
+                                disabled={isBusy}
+                              >
+                                {isDeleting ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Deleting
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </>
+                                )}
+                              </Button>
                             )}
-                          </Button>
+                          </div>
                         </td>
                       </tr>
                     );

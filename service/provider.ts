@@ -299,20 +299,18 @@ export async function createProviderProfile(
 }
 
 const fetchProviderMealsByActiveState = async (
-  providerProfileId: string,
+  _providerProfileId: string,
   isActive: boolean,
 ): Promise<ProviderMeal[]> => {
   const search = new URLSearchParams({
-    providerProfileId,
     isActive: String(isActive),
     limit: "200",
     page: "1",
     sort: "-createdAt",
   });
 
-  const response = await apiRequest<unknown>(`/api/meals?${search}`, {
+  const response = await apiRequest<unknown>(`/api/provider/meals?${search}`, {
     method: "GET",
-    skipAuth: true,
   });
 
   return unwrapList<ProviderMeal>(response);
@@ -370,9 +368,8 @@ export async function updateProviderMeal(
 }
 
 export async function fetchProviderMealById(mealId: string): Promise<ProviderMeal> {
-  const response = await apiRequest<unknown>(`/api/meals/${mealId}`, {
+  const response = await apiRequest<unknown>(`/api/provider/meals/${mealId}`, {
     method: "GET",
-    skipAuth: true,
   });
 
   return unwrap(response as { data: ProviderMeal } | ProviderMeal);

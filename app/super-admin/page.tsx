@@ -7,7 +7,7 @@ import Footer from "@/app/components/Footer";
 import { useAuth } from "@/app/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Shield, Users } from "lucide-react";
+import { Loader2, Shield, Users, UtensilsCrossed } from "lucide-react";
 import { fetchSuperAdminOverview, type SuperAdminOverview } from "@/service/superAdmin";
 
 const initialOverview: SuperAdminOverview = {
@@ -114,12 +114,23 @@ export default function SuperAdminDashboardPage() {
               </p>
               <h1 className="mt-2 text-3xl font-bold">Super Admin Dashboard</h1>
             </div>
-            <Button asChild>
-              <Link href="/super-admin/users">
-                <Users className="mr-2 h-4 w-4" />
-                Manage Users
-              </Link>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild>
+                <Link href="/super-admin/users">
+                  <Users className="mr-2 h-4 w-4" />
+                  Manage Users
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/super-admin/meals">
+                  <UtensilsCrossed className="mr-2 h-4 w-4" />
+                  Manage Meals
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/admin/providers">Manage Providers</Link>
+              </Button>
+            </div>
           </div>
 
           {error && (

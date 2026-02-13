@@ -55,6 +55,36 @@ export interface SuperAdminUsersResult {
   meta?: SuperAdminPaginationMeta;
 }
 
+export interface SuperAdminMeal {
+  id: string;
+  title: string;
+  shortDesc?: string | null;
+  price: number | string;
+  currency: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  providerProfileId: string;
+  providerProfile?: {
+    id: string;
+    name: string;
+    isVerified: boolean;
+    userId: string;
+  } | null;
+  images?: Array<{
+    id: string;
+    src: string;
+    altText?: string | null;
+    isPrimary: boolean;
+  }>;
+}
+
+export interface SuperAdminDeleteProviderResult {
+  id: string;
+  user: SuperAdminUser;
+  disabledMeals: number;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -132,6 +162,44 @@ export async function fetchSuperAdminUsers(params?: {
   return { data: [] };
 }
 
+export async function fetchSuperAdminMeals(params?: {
+  page?: number;
+  limit?: number;
+  searchTerm?: string;
+  providerProfileId?: string;
+  isActive?: boolean;
+  isVerified?: boolean;
+}): Promise<{ data: SuperAdminMeal[]; meta?: SuperAdminPaginationMeta }> {
+  const query = toQuery({
+    page: params?.page,
+    limit: params?.limit,
+    searchTerm: params?.searchTerm,
+    providerProfileId: params?.providerProfileId,
+    isActive: params?.isActive,
+    isVerified: params?.isVerified,
+  });
+
+  const response = await apiRequest<unknown>(
+    `/api/super-admin/meals${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+    },
+  );
+
+  if (Array.isArray(response)) {
+    return { data: response as SuperAdminMeal[] };
+  }
+
+  if (isRecord(response)) {
+    return {
+      data: Array.isArray(response.data) ? (response.data as SuperAdminMeal[]) : [],
+      meta: parseMeta(response.meta),
+    };
+  }
+
+  return { data: [] };
+}
+
 export async function updateSuperAdminUserRole(
   userId: string,
   role: SuperAdminUserRole,
@@ -160,4 +228,65 @@ export async function updateSuperAdminUserStatus(
   );
 
   return unwrap(response as { data: SuperAdminUser } | SuperAdminUser);
+}
+
+export async function deleteSuperAdminUser(
+  userId: string,
+): Promise<SuperAdminUser> {
+  const response = await apiRequest<unknown>(`/api/super-admin/users/${userId}`, {
+    method: "DELETE",
+  });
+
+  return unwrap(response as { data: SuperAdminUser } | SuperAdminUser);
+}
+
+export async function deleteSuperAdminProvider(
+  providerId: string,
+): Promise<SuperAdminDeleteProviderResult> {
+  const response = await apiRequest<unknown>(
+    `/api/super-admin/providers/${providerId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  return unwrap(
+    response as
+      | { data: SuperAdminDeleteProviderResult }
+      | SuperAdminDeleteProviderResult,
+  );
+}
+
+export async function deleteSuperAdminMeal(
+  mealId: string,
+): Promise<{
+  id: string;
+  title: string;
+  providerProfileId: string;
+  isActive: boolean;
+  deletedAt: string;
+}> {
+  const response = await apiRequest<unknown>(`/api/super-admin/meals/${mealId}`, {
+    method: "DELETE",
+  });
+
+  return unwrap(
+    response as
+      | {
+          data: {
+            id: string;
+            title: string;
+            providerProfileId: string;
+            isActive: boolean;
+            deletedAt: string;
+          };
+        }
+      | {
+          id: string;
+          title: string;
+          providerProfileId: string;
+          isActive: boolean;
+          deletedAt: string;
+        },
+  );
 }

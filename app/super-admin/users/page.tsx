@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import { Navigation } from "@/app/components/Navigation";
 import Footer from "@/app/components/Footer";
 import { useAuth } from "@/app/context/AuthContext";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   fetchSuperAdminUsers,
+  deleteSuperAdminUser,
   updateSuperAdminUserRole,
   updateSuperAdminUserStatus,
   type SuperAdminUser,
@@ -72,6 +73,7 @@ export default function SuperAdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
@@ -163,6 +165,26 @@ export default function SuperAdminUsersPage() {
     }
   };
 
+  const handleDeleteUser = async (entry: SuperAdminUser) => {
+    setDeletingId(entry.id);
+    try {
+      const deleted = await deleteSuperAdminUser(entry.id);
+      setUsers((prev) => prev.filter((item) => item.id !== deleted.id));
+      toast({
+        title: "User deleted",
+        description: `${deleted.email} has been deleted.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
@@ -206,9 +228,14 @@ export default function SuperAdminUsersPage() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-3xl font-bold">Super Admin User Management</h1>
-            <Button variant="outline" onClick={() => void loadUsers()}>
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href="/super-admin/meals">Manage Meals</Link>
+              </Button>
+              <Button variant="outline" onClick={() => void loadUsers()}>
+                Refresh
+              </Button>
+            </div>
           </div>
 
           <Card className="p-6 space-y-4">
@@ -273,6 +300,8 @@ export default function SuperAdminUsersPage() {
                 <tbody>
                   {filteredUsers.map((entry) => {
                     const isUpdating = updatingId === entry.id;
+                    const isDeleting = deletingId === entry.id;
+                    const isBusy = isUpdating || isDeleting;
                     const isBlocked = entry.status === "blocked" || !entry.isActive;
                     return (
                       <tr
@@ -313,7 +342,7 @@ export default function SuperAdminUsersPage() {
                                   event.target.value as SuperAdminUserRole,
                                 )
                               }
-                              disabled={isUpdating}
+                              disabled={isBusy}
                               className="rounded-md border border-input bg-background px-2 py-1 text-xs"
                             >
                               {roleOptions.map((role) => (
@@ -327,7 +356,7 @@ export default function SuperAdminUsersPage() {
                               size="sm"
                               variant={isBlocked ? "default" : "destructive"}
                               onClick={() => void handleToggleBlocked(entry)}
-                              disabled={isUpdating}
+                              disabled={isBusy}
                             >
                               {isUpdating ? (
                                 <>
@@ -338,6 +367,25 @@ export default function SuperAdminUsersPage() {
                                 "Activate"
                               ) : (
                                 "Block"
+                              )}
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void handleDeleteUser(entry)}
+                              disabled={isBusy || entry.id === user?.id}
+                            >
+                              {isDeleting ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Deleting
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </>
                               )}
                             </Button>
                           </div>
