@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 const baseLinks = [
+  { label: "Home", href: "/" },
   { label: "Meals", href: "/meals" },
   { label: "Providers", href: "/providers" },
 ];
