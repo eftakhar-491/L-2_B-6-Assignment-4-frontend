@@ -4,29 +4,6 @@
 
 @layer base {
   :root {
-    --background: 240 30% 97%;
-    --foreground: 217 33% 17%;
-    --card: 0 0% 100%;
-    --card-foreground: 217 33% 17%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 217 33% 17%;
-    --primary: 199 89% 48%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 199 100% 93%;
-    --secondary-foreground: 199 89% 48%;
-    --muted: 217 13% 91%;
-    --muted-foreground: 217 9% 46%;
-    --accent: 188 100% 50%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 217 14% 88%;
-    --input: 217 14% 88%;
-    --ring: 199 89% 48%;
-    --radius: 0.75rem;
-  }
-
-  .dark {
     --background: 217 32% 17%;
     --foreground: 0 0% 98%;
     --card: 217 32% 11%;
@@ -46,6 +23,29 @@
     --border: 217 20% 25%;
     --input: 217 20% 25%;
     --ring: 188 100% 50%;
+    --radius: 0.75rem;
+  }
+
+  .light {
+    --background: 240 30% 97%;
+    --foreground: 217 33% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 17%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 199 100% 93%;
+    --secondary-foreground: 199 89% 48%;
+    --muted: 217 13% 91%;
+    --muted-foreground: 217 9% 46%;
+    --accent: 188 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 14% 88%;
+    --input: 217 14% 88%;
+    --ring: 199 89% 48%;
   }
 }
 
@@ -55,7 +55,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    background: linear-gradient(135deg, hsl(240, 30%, 97%) 0%, hsl(199, 89%, 93%) 50%, hsl(188, 100%, 95%) 100%);
+    background: linear-gradient(135deg, hsl(217, 32%, 14%) 0%, hsl(217, 32%, 17%) 45%, hsl(217, 32%, 11%) 100%);
     position: relative;
   }
 
@@ -67,8 +67,8 @@
     right: 0;
     bottom: 0;
     background-image:
-      linear-gradient(90deg, rgba(199, 89%, 48%, 0.03) 1px, transparent 1px),
-      linear-gradient(rgba(199, 89%, 48%, 0.03) 1px, transparent 1px);
+      linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+      linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px);
     background-size: 60px 60px;
     pointer-events: none;
     z-index: 0;
