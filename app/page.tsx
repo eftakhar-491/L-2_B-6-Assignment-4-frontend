@@ -2,6 +2,7 @@ import { Navigation } from "./components/Navigation";
 import { HeroSection } from "./components/HeroSection";
 import { CategoriesSection } from "./components/CategoriesSection";
 import { FeaturedSection } from "./components/FeaturedSection";
+import { ExperienceSection } from "./components/ExperienceSection";
 import Footer from "@/app/components/Footer";
 import { fetchMeals } from "@/app/lib/meals-api";
 
@@ -15,6 +16,7 @@ export default async function Home() {
         <HeroSection />
         <CategoriesSection />
         <FeaturedSection meals={meals} />
+        <ExperienceSection />
       </main>
       <Footer />
     </div>

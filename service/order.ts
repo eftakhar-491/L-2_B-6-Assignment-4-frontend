@@ -47,6 +47,26 @@ export interface BackendOrderItem {
   options?: BackendOrderItemOption[];
 }
 
+export interface BackendOrderReview {
+  id: string;
+  userId: string;
+  mealId: string;
+  orderId?: string | null;
+  rating: number;
+  comment?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  meal?: {
+    id: string;
+    title: string;
+  } | null;
+  user?: {
+    id: string;
+    name?: string | null;
+    image?: string | null;
+  } | null;
+}
+
 export interface BackendOrder {
   id: string;
   userId: string;
@@ -67,6 +87,7 @@ export interface BackendOrder {
   providerProfile?: BackendOrderProvider | null;
   address?: BackendOrderAddress | null;
   items: BackendOrderItem[];
+  reviews?: BackendOrderReview[];
 }
 
 export interface OrderListMeta {
@@ -86,6 +107,12 @@ export interface CreateOrderPayload {
   deliveryAddressId: string;
   paymentMethod?: "cash_on_delivery";
   notes?: string;
+}
+
+export interface CreateOrderReviewPayload {
+  mealId: string;
+  rating: number;
+  comment?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -169,4 +196,16 @@ export async function cancelOrder(orderId: string): Promise<BackendOrder> {
   });
 
   return unwrap(response as { data: BackendOrder } | BackendOrder);
+}
+
+export async function submitOrderReview(
+  orderId: string,
+  payload: CreateOrderReviewPayload,
+): Promise<BackendOrderReview> {
+  const response = await apiRequest<unknown>(`/api/orders/${orderId}/reviews`, {
+    method: "POST",
+    body: payload,
+  });
+
+  return unwrap(response as { data: BackendOrderReview } | BackendOrderReview);
 }

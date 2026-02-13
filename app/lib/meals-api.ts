@@ -168,6 +168,7 @@ export interface FetchMealsOptions {
   limit?: number;
   searchTerm?: string;
   categoryId?: string;
+  dietary?: string;
   minPrice?: number;
   maxPrice?: number;
   isFeatured?: boolean;
@@ -182,6 +183,7 @@ const buildMealsQuery = (options: FetchMealsOptions) => {
   if (options.limit) query.set("limit", String(options.limit));
   if (options.searchTerm) query.set("searchTerm", options.searchTerm);
   if (options.categoryId) query.set("categoryId", options.categoryId);
+  if (options.dietary) query.set("dietary", options.dietary);
   if (options.minPrice !== undefined) query.set("minPrice", String(options.minPrice));
   if (options.maxPrice !== undefined) query.set("maxPrice", String(options.maxPrice));
   if (options.isFeatured !== undefined) {

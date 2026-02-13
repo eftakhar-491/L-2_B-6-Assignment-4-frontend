@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -21,10 +21,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   cancelOrder,
   fetchOrderById,
+  submitOrderReview,
   type BackendOrder,
   type OrderStatus,
 } from "@/service/order";
@@ -93,6 +95,31 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState<BackendOrder | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [reviewMealId, setReviewMealId] = useState("");
+  const [reviewRating, setReviewRating] = useState("5");
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  const reviewMealOptions = useMemo(() => {
+    if (!order) return [];
+
+    const mealsById = new Map<string, string>();
+    order.items.forEach((item) => {
+      if (!mealsById.has(item.mealId)) {
+        mealsById.set(item.mealId, item.meal?.title ?? "Meal");
+      }
+    });
+
+    return Array.from(mealsById.entries()).map(([id, title]) => ({
+      id,
+      title,
+    }));
+  }, [order]);
+
+  const mealTitleById = useMemo(
+    () => new Map(reviewMealOptions.map((meal) => [meal.id, meal.title])),
+    [reviewMealOptions],
+  );
 
   const loadOrder = useCallback(async () => {
     if (!orderId) return;
@@ -118,6 +145,19 @@ export default function OrderDetailsPage() {
     void loadOrder();
   }, [isAuthenticated, loadOrder, user?.role]);
 
+  useEffect(() => {
+    if (!order || reviewMealOptions.length === 0) return;
+
+    const reviewedMealIds = new Set(
+      (order.reviews ?? []).map((review) => review.mealId),
+    );
+    const firstUnreviewedMeal =
+      reviewMealOptions.find((meal) => !reviewedMealIds.has(meal.id)) ??
+      reviewMealOptions[0];
+
+    setReviewMealId(firstUnreviewedMeal?.id ?? "");
+  }, [order, reviewMealOptions]);
+
   const handleCancel = async () => {
     if (!order || order.status !== "placed") return;
     setIsCanceling(true);
@@ -137,6 +177,78 @@ export default function OrderDetailsPage() {
       });
     } finally {
       setIsCanceling(false);
+    }
+  };
+
+  const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!order || order.status !== "delivered") return;
+
+    if (!reviewMealId) {
+      toast({
+        variant: "destructive",
+        title: "Select a meal",
+        description: "Choose one meal from this order before submitting a review.",
+      });
+      return;
+    }
+
+    const rating = Number(reviewRating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      toast({
+        variant: "destructive",
+        title: "Invalid rating",
+        description: "Rating must be between 1 and 5.",
+      });
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      const createdReview = await submitOrderReview(order.id, {
+        mealId: reviewMealId,
+        rating,
+        comment: reviewComment.trim() || undefined,
+      });
+
+      setOrder((previous) => {
+        if (!previous) return previous;
+        const remainingReviews = (previous.reviews ?? []).filter(
+          (review) => review.mealId !== createdReview.mealId,
+        );
+
+        return {
+          ...previous,
+          reviews: [...remainingReviews, createdReview],
+        };
+      });
+
+      const reviewedMealIds = new Set([
+        ...(order.reviews ?? []).map((review) => review.mealId),
+        createdReview.mealId,
+      ]);
+      const nextUnreviewedMeal = reviewMealOptions.find(
+        (meal) => !reviewedMealIds.has(meal.id),
+      );
+      if (nextUnreviewedMeal) {
+        setReviewMealId(nextUnreviewedMeal.id);
+      }
+
+      setReviewComment("");
+      toast({
+        title: "Review submitted",
+        description: "Thanks for sharing your feedback.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Failed to submit review",
+        description:
+          error instanceof Error ? error.message : "Please try again shortly.",
+      });
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -452,7 +564,7 @@ export default function OrderDetailsPage() {
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-4">
                 <Card className="sticky top-24 rounded-[24px] border border-white/12 bg-gradient-to-br from-slate-950/90 via-slate-900/65 to-slate-950/90 p-6 shadow-[0_18px_90px_rgba(6,182,212,0.2)] backdrop-blur">
                   <div className="flex items-center justify-between">
                     <div>
@@ -510,6 +622,108 @@ export default function OrderDetailsPage() {
                     View all orders
                   </Button>
                 </Card>
+
+                {order.status === "delivered" && (
+                  <Card className="rounded-[24px] border border-white/12 bg-gradient-to-br from-slate-950/90 via-slate-900/65 to-slate-950/90 p-6 shadow-[0_18px_90px_rgba(6,182,212,0.2)] backdrop-blur">
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
+                      Post-order review
+                    </p>
+                    <h3 className="mt-2 text-xl font-semibold text-white">
+                      Rate your meal
+                    </h3>
+                    <p className="mt-1 text-sm text-white/65">
+                      Share feedback for meals from this delivered order.
+                    </p>
+
+                    <form onSubmit={handleSubmitReview} className="mt-4 space-y-4">
+                      <div>
+                        <label className="text-xs text-white/70">Meal</label>
+                        <select
+                          value={reviewMealId}
+                          onChange={(event) => setReviewMealId(event.target.value)}
+                          className="mt-2 w-full rounded-md border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                        >
+                          {reviewMealOptions.map((meal) => {
+                            const existingReview = (order.reviews ?? []).find(
+                              (review) => review.mealId === meal.id,
+                            );
+
+                            return (
+                              <option key={meal.id} value={meal.id}>
+                                {meal.title}
+                                {existingReview ? " (reviewed)" : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-white/70">Rating</label>
+                        <select
+                          value={reviewRating}
+                          onChange={(event) => setReviewRating(event.target.value)}
+                          className="mt-2 w-full rounded-md border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                        >
+                          <option value="5">5 - Excellent</option>
+                          <option value="4">4 - Good</option>
+                          <option value="3">3 - Average</option>
+                          <option value="2">2 - Poor</option>
+                          <option value="1">1 - Bad</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-white/70">
+                          Comment (optional)
+                        </label>
+                        <Textarea
+                          value={reviewComment}
+                          onChange={(event) => setReviewComment(event.target.value)}
+                          rows={3}
+                          placeholder="Tell us about taste, packaging, or delivery quality."
+                          className="mt-2 border-white/15 bg-slate-900 text-white placeholder:text-white/40"
+                        />
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={isSubmittingReview || !reviewMealId}
+                        className="w-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950"
+                      >
+                        {isSubmittingReview ? "Submitting..." : "Submit review"}
+                      </Button>
+                    </form>
+
+                    {(order.reviews ?? []).length > 0 && (
+                      <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
+                          Your reviews
+                        </p>
+                        {(order.reviews ?? []).map((review) => (
+                          <div
+                            key={review.id}
+                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                          >
+                            <p className="text-sm font-semibold text-white">
+                              {mealTitleById.get(review.mealId) ??
+                                review.meal?.title ??
+                                "Meal"}
+                            </p>
+                            <p className="text-xs text-cyan-200">
+                              Rating: {review.rating}/5
+                            </p>
+                            {review.comment && (
+                              <p className="mt-1 text-xs text-white/70">
+                                {review.comment}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                )}
               </div>
             </div>
           </div>

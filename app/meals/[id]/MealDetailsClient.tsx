@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Minus, Star } from "lucide-react";
 
@@ -195,7 +196,19 @@ export function MealDetailsClient({ meal }: { meal: MealCardData }) {
                   <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.4em] text-white/70">
                     {meal.category}
                   </span>
-                  <p className="text-sm text-white/70">From {meal.providerName}</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-white/70">
+                      From {meal.providerName}
+                    </p>
+                    {meal.providerId && (
+                      <Link
+                        href={`/providers/${meal.providerId}`}
+                        className="text-xs uppercase tracking-[0.28em] text-cyan-200 transition hover:text-cyan-100"
+                      >
+                        View provider menu
+                      </Link>
+                    )}
+                  </div>
                   <p className="max-w-xl text-base text-white/80">
                     {meal.description}
                   </p>

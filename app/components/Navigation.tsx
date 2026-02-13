@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
-const baseLinks = [{ label: "Meals", href: "/meals" }];
+const baseLinks = [
+  { label: "Meals", href: "/meals" },
+  { label: "Providers", href: "/providers" },
+];
 
 const roleLinks = {
   customer: [

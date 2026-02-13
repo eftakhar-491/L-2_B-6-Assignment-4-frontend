@@ -13,11 +13,33 @@ type RawSearchParams = Record<string, string | string[] | undefined>;
 const toSingleValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
-const buildMealsHref = (params: { searchTerm?: string; categoryId?: string }) => {
+const parsePrice = (value?: string) => {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const toDietarySlug = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const buildMealsHref = (params: {
+  searchTerm?: string;
+  categoryId?: string;
+  dietary?: string;
+  minPrice?: string;
+  maxPrice?: string;
+}) => {
   const query = new URLSearchParams();
 
   if (params.searchTerm?.trim()) query.set("searchTerm", params.searchTerm.trim());
   if (params.categoryId?.trim()) query.set("categoryId", params.categoryId.trim());
+  if (params.dietary?.trim()) query.set("dietary", params.dietary.trim());
+  if (params.minPrice?.trim()) query.set("minPrice", params.minPrice.trim());
+  if (params.maxPrice?.trim()) query.set("maxPrice", params.maxPrice.trim());
 
   const asString = query.toString();
   return asString ? `/meals?${asString}` : "/meals";
@@ -32,35 +54,54 @@ export default async function BrowseMealsPage({
 
   const searchTerm = toSingleValue(resolvedSearch.searchTerm) ?? "";
   const selectedCategoryId = toSingleValue(resolvedSearch.categoryId) ?? "";
+  const dietaryParam = toSingleValue(resolvedSearch.dietary) ?? "";
+  const selectedDietarySlug = toDietarySlug(dietaryParam);
+  const minPriceInput = toSingleValue(resolvedSearch.minPrice) ?? "";
+  const maxPriceInput = toSingleValue(resolvedSearch.maxPrice) ?? "";
+  const minPrice = parsePrice(minPriceInput);
+  const maxPrice = parsePrice(maxPriceInput);
 
   const [meals, allMeals] = await Promise.all([
     fetchMeals({
       limit: 60,
       searchTerm: searchTerm || undefined,
       categoryId: selectedCategoryId || undefined,
+      dietary: selectedDietarySlug || undefined,
+      minPrice,
+      maxPrice,
       isActive: true,
       sort: "-createdAt",
     }),
     fetchMeals({
-      limit: 200,
+      limit: 250,
       isActive: true,
       sort: "title",
     }),
   ]);
 
   const categoryMap = new Map<string, string>();
+  const dietaryMap = new Map<string, string>();
+
   allMeals.forEach((meal) => {
     if (meal.categoryId && meal.category) {
       categoryMap.set(meal.categoryId, meal.category);
     }
+
+    (meal.dietary ?? []).forEach((tag) => {
+      const slug = toDietarySlug(tag);
+      if (slug && !dietaryMap.has(slug)) {
+        dietaryMap.set(slug, tag);
+      }
+    });
   });
 
-  const categories = Array.from(categoryMap.entries()).map(([id, name]) => ({
-    id,
-    name,
-  }));
+  const categories = Array.from(categoryMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  categories.sort((a, b) => a.name.localeCompare(b.name));
+  const dietaryOptions = Array.from(dietaryMap.entries())
+    .map(([slug, name]) => ({ slug, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -76,7 +117,21 @@ export default async function BrowseMealsPage({
                 </p>
                 <h1 className="text-3xl font-bold">Browse Meals</h1>
               </div>
+
               <form action="/meals" method="GET" className="relative w-full max-w-md">
+                {selectedCategoryId && (
+                  <input type="hidden" name="categoryId" value={selectedCategoryId} />
+                )}
+                {selectedDietarySlug && (
+                  <input type="hidden" name="dietary" value={selectedDietarySlug} />
+                )}
+                {minPriceInput && (
+                  <input type="hidden" name="minPrice" value={minPriceInput} />
+                )}
+                {maxPriceInput && (
+                  <input type="hidden" name="maxPrice" value={maxPriceInput} />
+                )}
+
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <Input
                   name="searchTerm"
@@ -90,28 +145,38 @@ export default async function BrowseMealsPage({
         </section>
 
         <section className="border-b border-white/10 py-6">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-2">
               <Button
                 asChild
                 variant={!selectedCategoryId ? "default" : "outline"}
                 className="whitespace-nowrap"
               >
-                <Link href={buildMealsHref({ searchTerm })}>All</Link>
+                <Link
+                  href={buildMealsHref({
+                    searchTerm,
+                    dietary: selectedDietarySlug,
+                    minPrice: minPriceInput,
+                    maxPrice: maxPriceInput,
+                  })}
+                >
+                  All
+                </Link>
               </Button>
               {categories.map((category) => (
                 <Button
                   asChild
                   key={category.id}
-                  variant={
-                    selectedCategoryId === category.id ? "default" : "outline"
-                  }
+                  variant={selectedCategoryId === category.id ? "default" : "outline"}
                   className="whitespace-nowrap"
                 >
                   <Link
                     href={buildMealsHref({
                       searchTerm,
                       categoryId: category.id,
+                      dietary: selectedDietarySlug,
+                      minPrice: minPriceInput,
+                      maxPrice: maxPriceInput,
                     })}
                   >
                     {category.name}
@@ -119,6 +184,94 @@ export default async function BrowseMealsPage({
                 </Button>
               ))}
             </div>
+
+            <form
+              action="/meals"
+              method="GET"
+              className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-2 xl:grid-cols-[1fr_1.1fr_auto_auto]"
+            >
+              {searchTerm && (
+                <input type="hidden" name="searchTerm" value={searchTerm} />
+              )}
+              {selectedCategoryId && (
+                <input type="hidden" name="categoryId" value={selectedCategoryId} />
+              )}
+
+              <div>
+                <label
+                  htmlFor="dietary"
+                  className="block text-[11px] uppercase tracking-[0.25em] text-white/55"
+                >
+                  Dietary
+                </label>
+                <select
+                  id="dietary"
+                  name="dietary"
+                  defaultValue={selectedDietarySlug}
+                  className="mt-2 w-full rounded-md border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                >
+                  <option value="">All preferences</option>
+                  {dietaryOptions.map((option) => (
+                    <option key={option.slug} value={option.slug}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="minPrice"
+                    className="block text-[11px] uppercase tracking-[0.25em] text-white/55"
+                  >
+                    Min price
+                  </label>
+                  <Input
+                    id="minPrice"
+                    name="minPrice"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    defaultValue={minPriceInput}
+                    placeholder="0"
+                    className="mt-2 border-white/15 bg-slate-900 text-white placeholder:text-white/40"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="maxPrice"
+                    className="block text-[11px] uppercase tracking-[0.25em] text-white/55"
+                  >
+                    Max price
+                  </label>
+                  <Input
+                    id="maxPrice"
+                    name="maxPrice"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    defaultValue={maxPriceInput}
+                    placeholder="100"
+                    className="mt-2 border-white/15 bg-slate-900 text-white placeholder:text-white/40"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" className="h-full min-h-10">
+                Apply filters
+              </Button>
+
+              <Button
+                asChild
+                variant="outline"
+                className="h-full min-h-10 border-white/20 text-white hover:bg-white/10"
+              >
+                <Link href={buildMealsHref({ searchTerm, categoryId: selectedCategoryId })}>
+                  Reset
+                </Link>
+              </Button>
+            </form>
           </div>
         </section>
 
@@ -142,21 +295,15 @@ export default async function BrowseMealsPage({
 
                       <div className="relative flex h-full flex-col p-5">
                         <div className="flex items-center justify-between text-sm text-white/85">
-                          <span className="text-lg font-semibold">
-                            ${meal.price}
-                          </span>
+                          <span className="text-lg font-semibold">${meal.price}</span>
                           <div className="flex items-center gap-1 text-xs uppercase tracking-[0.3em] text-white/60">
                             {meal.category || "Drop"}
                           </div>
                         </div>
 
                         <div className="mt-auto space-y-2">
-                          <p className="text-xs text-white/60">
-                            From {meal.providerName}
-                          </p>
-                          <h3 className="text-xl font-semibold text-white">
-                            {meal.name}
-                          </h3>
+                          <p className="text-xs text-white/60">From {meal.providerName}</p>
+                          <h3 className="text-xl font-semibold text-white">{meal.name}</h3>
                           <p className="line-clamp-2 text-xs text-white/75">
                             {meal.description}
                           </p>
@@ -166,13 +313,9 @@ export default async function BrowseMealsPage({
                           <div className="flex items-center gap-1">
                             <Star className="h-4 w-4 text-amber-300" />
                             <span className="font-semibold">{meal.rating}</span>
-                            <span className="text-white/60">
-                              ({meal.reviews})
-                            </span>
+                            <span className="text-white/60">({meal.reviews})</span>
                           </div>
-                          <span className="text-white/60">
-                            {meal.preparationTime}m
-                          </span>
+                          <span className="text-white/60">{meal.preparationTime}m</span>
                         </div>
 
                         {meal.dietary && meal.dietary.length > 0 && (
@@ -201,4 +344,3 @@ export default async function BrowseMealsPage({
     </div>
   );
 }
-
