@@ -73,14 +73,19 @@ export function FeaturedSection({ meals }: { meals: MealCardData[] }) {
   const featured = meals.slice(0, 6);
 
   return (
-    <section className="bg-secondary/20 py-16 md:py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden bg-slate-950 py-16 text-slate-100 md:py-24">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-cyan-400/20 blur-[140px]" />
+        <div className="absolute bottom-0 right-0 h-96 w-96 translate-x-1/3 translate-y-1/3 rounded-full bg-emerald-400/20 blur-[160px]" />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
           <motion.h2
             initial={{ opacity: 0, y: -10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="mb-4 text-3xl font-bold md:text-4xl"
+            className="mb-4 text-3xl font-bold text-white md:text-4xl"
           >
             Featured Meals
           </motion.h2>

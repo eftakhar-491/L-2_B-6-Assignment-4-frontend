@@ -21,7 +21,7 @@ export default async function Home() {
       <Navigation />
       <main className="flex-1">
         <HeroSection />
-        <CategoriesSection />
+        {/* <CategoriesSection /> */}
         <ProvidersSection providers={providers} />
         <FeaturedSection meals={meals} />
         <ExperienceSection />

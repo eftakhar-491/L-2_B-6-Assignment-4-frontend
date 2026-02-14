@@ -1,17 +1,16 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Star } from "lucide-react";
 
 import { Navigation } from "@/app/components/Navigation";
 import Footer from "@/app/components/Footer";
+import { fetchMeals } from "@/app/lib/meals-api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { fetchMeals } from "@/app/lib/meals-api";
-
-type RawSearchParams = Record<string, string | string[] | undefined>;
-
-const toSingleValue = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
 
 const parsePrice = (value?: string) => {
   if (!value?.trim()) return undefined;
@@ -45,63 +44,137 @@ const buildMealsHref = (params: {
   return asString ? `/meals?${asString}` : "/meals";
 };
 
-export default async function BrowseMealsPage({
-  searchParams,
-}: {
-  searchParams: Promise<RawSearchParams>;
-}) {
-  const resolvedSearch = await searchParams;
+export default function BrowseMealsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const searchTerm = toSingleValue(resolvedSearch.searchTerm) ?? "";
-  const selectedCategoryId = toSingleValue(resolvedSearch.categoryId) ?? "";
-  const dietaryParam = toSingleValue(resolvedSearch.dietary) ?? "";
+  const searchTerm = searchParams.get("searchTerm") ?? "";
+  const selectedCategoryId = searchParams.get("categoryId") ?? "";
+  const dietaryParam = searchParams.get("dietary") ?? "";
   const selectedDietarySlug = toDietarySlug(dietaryParam);
-  const minPriceInput = toSingleValue(resolvedSearch.minPrice) ?? "";
-  const maxPriceInput = toSingleValue(resolvedSearch.maxPrice) ?? "";
+  const minPriceInput = searchParams.get("minPrice") ?? "";
+  const maxPriceInput = searchParams.get("maxPrice") ?? "";
   const minPrice = parsePrice(minPriceInput);
   const maxPrice = parsePrice(maxPriceInput);
 
-  const [meals, allMeals] = await Promise.all([
-    fetchMeals({
-      limit: 60,
-      searchTerm: searchTerm || undefined,
-      categoryId: selectedCategoryId || undefined,
-      dietary: selectedDietarySlug || undefined,
-      minPrice,
-      maxPrice,
-      isActive: true,
-      sort: "-createdAt",
-    }),
-    fetchMeals({
-      limit: 250,
-      isActive: true,
-      sort: "title",
-    }),
+  const [meals, setMeals] = useState<Awaited<ReturnType<typeof fetchMeals>>>([]);
+  const [allMeals, setAllMeals] = useState<Awaited<ReturnType<typeof fetchMeals>>>([]);
+  const [isLoadingMeals, setIsLoadingMeals] = useState(true);
+  const [searchInput, setSearchInput] = useState(searchTerm);
+  const [dietaryInput, setDietaryInput] = useState(selectedDietarySlug);
+  const [minPriceValue, setMinPriceValue] = useState(minPriceInput);
+  const [maxPriceValue, setMaxPriceValue] = useState(maxPriceInput);
+
+  const pushFilters = useCallback(
+    (params: {
+      searchTerm?: string;
+      categoryId?: string;
+      dietary?: string;
+      minPrice?: string;
+      maxPrice?: string;
+    }) => {
+      router.replace(buildMealsHref(params), { scroll: false });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    setSearchInput(searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setDietaryInput(selectedDietarySlug);
+  }, [selectedDietarySlug]);
+
+  useEffect(() => {
+    setMinPriceValue(minPriceInput);
+  }, [minPriceInput]);
+
+  useEffect(() => {
+    setMaxPriceValue(maxPriceInput);
+  }, [maxPriceInput]);
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      setIsLoadingMeals(true);
+      const list = await fetchMeals({
+        limit: 60,
+        searchTerm: searchTerm || undefined,
+        categoryId: selectedCategoryId || undefined,
+        dietary: selectedDietarySlug || undefined,
+        minPrice,
+        maxPrice,
+        isActive: true,
+        sort: "-createdAt",
+      });
+
+      if (active) {
+        setMeals(list);
+        setIsLoadingMeals(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    searchTerm,
+    selectedCategoryId,
+    selectedDietarySlug,
+    minPrice,
+    maxPrice,
   ]);
 
-  const categoryMap = new Map<string, string>();
-  const dietaryMap = new Map<string, string>();
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const list = await fetchMeals({
+        limit: 250,
+        isActive: true,
+        sort: "title",
+      });
+      if (active) {
+        setAllMeals(list);
+      }
+    })();
 
-  allMeals.forEach((meal) => {
-    if (meal.categoryId && meal.category) {
-      categoryMap.set(meal.categoryId, meal.category);
-    }
+    return () => {
+      active = false;
+    };
+  }, []);
 
-    (meal.dietary ?? []).forEach((tag) => {
-      const slug = toDietarySlug(tag);
-      if (slug && !dietaryMap.has(slug)) {
-        dietaryMap.set(slug, tag);
+  const categories = useMemo(() => {
+    const categoryMap = new Map<string, string>();
+
+    allMeals.forEach((meal) => {
+      if (meal.categoryId && meal.category) {
+        categoryMap.set(meal.categoryId, meal.category);
       }
     });
-  });
 
-  const categories = Array.from(categoryMap.entries())
-    .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(categoryMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allMeals]);
 
-  const dietaryOptions = Array.from(dietaryMap.entries())
-    .map(([slug, name]) => ({ slug, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const dietaryOptions = useMemo(() => {
+    const dietaryMap = new Map<string, string>();
+
+    allMeals.forEach((meal) => {
+      (meal.dietary ?? []).forEach((tag) => {
+        const slug = toDietarySlug(tag);
+        if (slug && !dietaryMap.has(slug)) {
+          dietaryMap.set(slug, tag);
+        }
+      });
+    });
+
+    return Array.from(dietaryMap.entries())
+      .map(([slug, name]) => ({ slug, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allMeals]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -118,24 +191,23 @@ export default async function BrowseMealsPage({
                 <h1 className="text-3xl font-bold">Browse Meals</h1>
               </div>
 
-              <form action="/meals" method="GET" className="relative w-full max-w-md">
-                {selectedCategoryId && (
-                  <input type="hidden" name="categoryId" value={selectedCategoryId} />
-                )}
-                {selectedDietarySlug && (
-                  <input type="hidden" name="dietary" value={selectedDietarySlug} />
-                )}
-                {minPriceInput && (
-                  <input type="hidden" name="minPrice" value={minPriceInput} />
-                )}
-                {maxPriceInput && (
-                  <input type="hidden" name="maxPrice" value={maxPriceInput} />
-                )}
-
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  pushFilters({
+                    searchTerm: searchInput,
+                    categoryId: selectedCategoryId || undefined,
+                    dietary: selectedDietarySlug || undefined,
+                    minPrice: minPriceInput || undefined,
+                    maxPrice: maxPriceInput || undefined,
+                  });
+                }}
+                className="relative w-full max-w-md"
+              >
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <Input
-                  name="searchTerm"
-                  defaultValue={searchTerm}
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
                   placeholder="Search dishes, chefs, tags"
                   className="border-white/10 bg-white/5 pl-9 pr-4 text-sm text-white placeholder:text-white/40"
                 />
@@ -148,55 +220,52 @@ export default async function BrowseMealsPage({
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-2">
               <Button
-                asChild
                 variant={!selectedCategoryId ? "default" : "outline"}
                 className="whitespace-nowrap"
-              >
-                <Link
-                  href={buildMealsHref({
+                onClick={() =>
+                  pushFilters({
                     searchTerm,
-                    dietary: selectedDietarySlug,
-                    minPrice: minPriceInput,
-                    maxPrice: maxPriceInput,
-                  })}
-                >
-                  All
-                </Link>
+                    dietary: selectedDietarySlug || undefined,
+                    minPrice: minPriceInput || undefined,
+                    maxPrice: maxPriceInput || undefined,
+                  })
+                }
+              >
+                All
               </Button>
               {categories.map((category) => (
                 <Button
-                  asChild
                   key={category.id}
                   variant={selectedCategoryId === category.id ? "default" : "outline"}
                   className="whitespace-nowrap"
-                >
-                  <Link
-                    href={buildMealsHref({
+                  onClick={() =>
+                    pushFilters({
                       searchTerm,
                       categoryId: category.id,
-                      dietary: selectedDietarySlug,
-                      minPrice: minPriceInput,
-                      maxPrice: maxPriceInput,
-                    })}
-                  >
-                    {category.name}
-                  </Link>
+                      dietary: selectedDietarySlug || undefined,
+                      minPrice: minPriceInput || undefined,
+                      maxPrice: maxPriceInput || undefined,
+                    })
+                  }
+                >
+                  {category.name}
                 </Button>
               ))}
             </div>
 
             <form
-              action="/meals"
-              method="GET"
+              onSubmit={(event) => {
+                event.preventDefault();
+                pushFilters({
+                  searchTerm,
+                  categoryId: selectedCategoryId || undefined,
+                  dietary: dietaryInput || undefined,
+                  minPrice: minPriceValue || undefined,
+                  maxPrice: maxPriceValue || undefined,
+                });
+              }}
               className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-2 xl:grid-cols-[1fr_1.1fr_auto_auto]"
             >
-              {searchTerm && (
-                <input type="hidden" name="searchTerm" value={searchTerm} />
-              )}
-              {selectedCategoryId && (
-                <input type="hidden" name="categoryId" value={selectedCategoryId} />
-              )}
-
               <div>
                 <label
                   htmlFor="dietary"
@@ -206,8 +275,8 @@ export default async function BrowseMealsPage({
                 </label>
                 <select
                   id="dietary"
-                  name="dietary"
-                  defaultValue={selectedDietarySlug}
+                  value={dietaryInput}
+                  onChange={(event) => setDietaryInput(event.target.value)}
                   className="mt-2 w-full rounded-md border border-white/15 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
                 >
                   <option value="">All preferences</option>
@@ -229,11 +298,11 @@ export default async function BrowseMealsPage({
                   </label>
                   <Input
                     id="minPrice"
-                    name="minPrice"
                     type="number"
                     min={0}
                     step="0.01"
-                    defaultValue={minPriceInput}
+                    value={minPriceValue}
+                    onChange={(event) => setMinPriceValue(event.target.value)}
                     placeholder="0"
                     className="mt-2 border-white/15 bg-slate-900 text-white placeholder:text-white/40"
                   />
@@ -247,11 +316,11 @@ export default async function BrowseMealsPage({
                   </label>
                   <Input
                     id="maxPrice"
-                    name="maxPrice"
                     type="number"
                     min={0}
                     step="0.01"
-                    defaultValue={maxPriceInput}
+                    value={maxPriceValue}
+                    onChange={(event) => setMaxPriceValue(event.target.value)}
                     placeholder="100"
                     className="mt-2 border-white/15 bg-slate-900 text-white placeholder:text-white/40"
                   />
@@ -263,13 +332,17 @@ export default async function BrowseMealsPage({
               </Button>
 
               <Button
-                asChild
+                type="button"
                 variant="outline"
                 className="h-full min-h-10 border-white/20 text-white hover:bg-white/10"
+                onClick={() =>
+                  pushFilters({
+                    searchTerm,
+                    categoryId: selectedCategoryId || undefined,
+                  })
+                }
               >
-                <Link href={buildMealsHref({ searchTerm, categoryId: selectedCategoryId })}>
-                  Reset
-                </Link>
+                Reset
               </Button>
             </form>
           </div>
@@ -277,7 +350,11 @@ export default async function BrowseMealsPage({
 
         <section className="bg-slate-950 py-12">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            {meals.length === 0 ? (
+            {isLoadingMeals ? (
+              <div className="py-12 text-center">
+                <p className="text-lg text-muted-foreground">Loading meals...</p>
+              </div>
+            ) : meals.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-lg text-muted-foreground">No meals found</p>
               </div>

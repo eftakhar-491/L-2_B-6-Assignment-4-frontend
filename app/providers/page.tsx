@@ -1,4 +1,8 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Star, Store } from "lucide-react";
 
 import { Navigation } from "@/app/components/Navigation";
@@ -8,30 +12,64 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type RawSearchParams = Record<string, string | string[] | undefined>;
-
-const toSingleValue = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
-
 const toNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-export default async function ProvidersPage({
-  searchParams,
-}: {
-  searchParams: Promise<RawSearchParams>;
-}) {
-  const resolvedSearch = await searchParams;
-  const searchTerm = toSingleValue(resolvedSearch.searchTerm) ?? "";
+const buildProvidersHref = (searchTerm?: string) => {
+  const query = new URLSearchParams();
+  if (searchTerm?.trim()) {
+    query.set("searchTerm", searchTerm.trim());
+  }
+  const asString = query.toString();
+  return asString ? `/providers?${asString}` : "/providers";
+};
 
-  const providers = await fetchProviders({
-    limit: 100,
-    sort: "-createdAt",
-    searchTerm: searchTerm || undefined,
-    isVerified: true,
-  });
+export default function ProvidersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchTerm = searchParams.get("searchTerm") ?? "";
+
+  const [providers, setProviders] = useState<
+    Awaited<ReturnType<typeof fetchProviders>>
+  >([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState(searchTerm);
+
+  const pushSearch = useCallback(
+    (value?: string) => {
+      router.replace(buildProvidersHref(value), { scroll: false });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    setSearchInput(searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      setIsLoading(true);
+      const list = await fetchProviders({
+        limit: 100,
+        sort: "-createdAt",
+        searchTerm: searchTerm || undefined,
+        isVerified: true,
+      });
+
+      if (active) {
+        setProviders(list);
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [searchTerm]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -48,11 +86,17 @@ export default async function ProvidersPage({
                 <h1 className="text-3xl font-bold">Browse Providers</h1>
               </div>
 
-              <form action="/providers" method="GET" className="relative w-full max-w-md">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  pushSearch(searchInput);
+                }}
+                className="relative w-full max-w-md"
+              >
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <Input
-                  name="searchTerm"
-                  defaultValue={searchTerm}
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
                   placeholder="Search provider name or location"
                   className="border-white/10 bg-white/5 pl-9 pr-4 text-sm text-white placeholder:text-white/40"
                 />
@@ -63,7 +107,11 @@ export default async function ProvidersPage({
 
         <section className="py-12">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            {providers.length === 0 ? (
+            {isLoading ? (
+              <Card className="rounded-2xl border border-white/12 bg-white/5 p-10 text-center text-white/70">
+                Loading providers...
+              </Card>
+            ) : providers.length === 0 ? (
               <Card className="rounded-2xl border border-white/12 bg-white/5 p-10 text-center text-white/70">
                 No providers found for your search.
               </Card>
