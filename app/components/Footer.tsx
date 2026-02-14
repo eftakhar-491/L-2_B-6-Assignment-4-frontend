@@ -52,7 +52,7 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-16 border-t border-white/10 bg-slate-950 text-slate-100">
+    <footer className="relative border-t border-white/10 bg-slate-950 text-slate-100">
       <div className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-full bg-[radial-gradient(circle_at_bottom,_rgba(14,165,233,0.15),_transparent_55%)]" />
       <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-16 sm:px-8">
         <div className="grid gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-lg lg:grid-cols-[1.2fr_1fr]">
