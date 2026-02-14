@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Star, Store } from "lucide-react";
@@ -26,7 +26,7 @@ const buildProvidersHref = (searchTerm?: string) => {
   return asString ? `/providers?${asString}` : "/providers";
 };
 
-export default function ProvidersPage() {
+function ProvidersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = searchParams.get("searchTerm") ?? "";
@@ -176,5 +176,21 @@ export default function ProvidersPage() {
 
       <Footer />
     </div>
+  );
+}
+
+function ProvidersPageFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
+      <p className="text-sm text-white/70">Loading providers...</p>
+    </div>
+  );
+}
+
+export default function ProvidersPage() {
+  return (
+    <Suspense fallback={<ProvidersPageFallback />}>
+      <ProvidersPageContent />
+    </Suspense>
   );
 }
